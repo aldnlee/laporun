@@ -8,7 +8,7 @@
  "scripts": {
   "dev": "astro dev",
   "start": "astro dev",
-  "build": "astro build && echo '{\"name\":\"laporun\",\"pages_build_output_dir\":\"dist\"}' > dist/server/wrangler.json",
+  "build": "astro build",
   "preview": "astro preview"
 },
   "dependencies": {
