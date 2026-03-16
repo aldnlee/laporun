@@ -4,6 +4,6 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   output: 'server',
-  adapter: cloudflare(), // Kembalikan ke default tanpa platformProxy dulu
+  adapter: cloudflare(),
   integrations: [tailwind()],
 });
