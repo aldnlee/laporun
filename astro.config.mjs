@@ -5,8 +5,9 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    // Matikan fitur binding otomatis yang bikin error tadi
-    imageService: 'passthrough', 
+    // Matikan semua fitur otomatis yang bikin wrangler.json rusak
+    imageService: 'passthrough',
+    runtime: { mode: 'complete', binding: false }
   }),
   integrations: [tailwind()],
 });
