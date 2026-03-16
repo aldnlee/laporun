@@ -4,8 +4,6 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   output: 'server',
-  adapter: cloudflare({
-    mode: 'directory', // Ini memaksa Astro buat struktur yang disukai Cloudflare Pages
-  }),
+  adapter: cloudflare(), // Default saja
   integrations: [tailwind()],
 });
