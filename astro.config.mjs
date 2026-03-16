@@ -5,7 +5,13 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    mode: 'directory', // <--- PAKAI INI
+    mode: 'directory',
   }),
   integrations: [tailwind()],
+  // Tambahkan ini untuk memastikan Vite tidak ikut campur urusan binding
+  vite: {
+    ssr: {
+      external: ['node:buffer'],
+    },
+  },
 });
