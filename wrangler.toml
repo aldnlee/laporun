@@ -1,0 +1,7 @@
+name = "laporun"
+compatibility_date = "2024-04-03"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "dist"
+
+[vars]
+# Jika kamu butuh env, taruh di sini
