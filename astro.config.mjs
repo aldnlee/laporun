@@ -4,6 +4,9 @@ import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   output: 'server',
-  adapter: cloudflare(),
+  adapter: cloudflare({
+    // Matikan fitur binding otomatis yang bikin error tadi
+    imageService: 'passthrough', 
+  }),
   integrations: [tailwind()],
 });
