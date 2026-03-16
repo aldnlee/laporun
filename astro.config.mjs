@@ -5,9 +5,9 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    // Paksa mode paling simpel agar tidak membuat binding otomatis
-    platformProxy: { enabled: false },
-    runtime: { mode: 'complete', binding: false }
+    // MODE INI AKAN MENGHENTIKAN ASTRO MEMBUAT WRANGLER.JSON YANG RUSAK
+    mode: 'directory', 
+    runtime: { mode: 'complete' }
   }),
   integrations: [tailwind()],
 });
