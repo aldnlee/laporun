@@ -3,7 +3,9 @@ import cloudflare from '@astrojs/cloudflare';
 import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
-  output: 'server', // Wajib untuk SSR
-  adapter: cloudflare(),
+  output: 'server',
+  adapter: cloudflare({
+    platformProxy: { enabled: true }
+  }),
   integrations: [tailwind()],
 });
