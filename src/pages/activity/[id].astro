@@ -3,52 +3,117 @@ import Layout from '../../layouts/Layout.astro';
 import { supabase } from '../../lib/supabase';
 
 const { id } = Astro.params;
-const { data: run, error } = await supabase.from('activities').select('*').eq('id', id).single();
 
-if (error || !run) return Astro.redirect('/');
+// Ambil data lari dari Supabase
+const { data: run, error } = await supabase
+  .from('activities')
+  .select('*')
+  .eq('id', id)
+  .single();
 
-const avgPace = run.distance > 0 ? (run.duration / 60) / run.distance : 0;
+if (error || !run) {
+  return Astro.redirect('/404');
+}
+
+// Helper Format Waktu (detik ke HH:MM:SS)
+const formatDuration = (seconds: number) => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
+};
+
+// Helper Format Pace (menit/km)
+const formatPace = (duration: number, distance: number) => {
+  if (!distance) return "0'00\"";
+  const pace = (duration / 60) / distance;
+  const min = Math.floor(pace);
+  const sec = Math.round((pace - min) * 60);
+  return `${min}'${sec.toString().padStart(2, '0')}"`;
+};
 ---
-<Layout title={run.title}>
-  <main class="p-6 max-w-xl mx-auto bg-white min-h-screen font-sans">
-    <a href="/" class="text-orange-500 font-bold text-[10px] uppercase tracking-widest mb-8 block">← Back to Dashboard</a>
-    
-    <header class="mb-8">
-      <h1 class="text-4xl font-black italic text-gray-800 uppercase leading-none mb-2">{run.title}</h1>
-      <p class="text-xs font-bold text-gray-400">{new Date(run.created_at).toLocaleString('id-ID')}</p>
-    </header>
 
-    <div class="grid grid-cols-1 gap-4 mb-10">
-      <div class="bg-orange-50 p-10 rounded-[40px] border border-orange-100">
-        <p class="text-7xl font-black text-orange-600 leading-none mb-2">{run.distance.toFixed(2)}</p>
-        <p class="text-xs font-black text-orange-400 uppercase tracking-[0.3em]">Kilometers</p>
+<Layout title={`${run.title} - Ngabuburun`}>
+  <main class="p-6 max-w-3xl mx-auto font-sans bg-gray-50 min-h-screen">
+    <nav class="flex justify-between items-center mb-8">
+      <a href="/" class="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-orange-600 transition-colors">
+        ← Back to Dashboard
+      </a>
+      <div class="bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-[10px] font-black uppercase">
+        Activity Detail
       </div>
-      
-      <div class="grid grid-cols-2 gap-4">
-        <div class="bg-gray-50 p-6 rounded-[30px]">
-          <p class="text-2xl font-black text-gray-800">{Math.floor(run.duration / 60)}m {run.duration % 60}s</p>
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Time</p>
+    </nav>
+
+    <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
+      <div class="p-8 border-b border-gray-50">
+        <h1 class="text-4xl font-black italic text-gray-800 uppercase tracking-tighter mb-2">
+          {run.title}
+        </h1>
+        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">
+          📅 {new Date(run.created_at).toLocaleDateString('id-ID', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          })}
+        </p>
+      </div>
+
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-px bg-gray-100">
+        <div class="bg-white p-8">
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Distance</p>
+          <p class="text-4xl font-black text-gray-800 italic">{run.distance.toFixed(2)}<span class="text-sm ml-1 uppercase text-gray-400">km</span></p>
         </div>
-        <div class="bg-gray-50 p-6 rounded-[30px]">
-          <p class="text-2xl font-black text-gray-800">{avgPace.toFixed(2)}'/km</p>
-          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Avg Pace</p>
+        <div class="bg-white p-8">
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Duration</p>
+          <p class="text-4xl font-black text-gray-800 italic">{formatDuration(run.duration)}</p>
+        </div>
+        <div class="bg-white p-8 col-span-2 md:col-span-1 border-t md:border-t-0">
+          <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Avg. Pace</p>
+          <p class="text-4xl font-black text-orange-600 italic">{formatPace(run.duration, run.distance)}</p>
+        </div>
+      </div>
+
+      <div class="bg-gray-200 h-64 flex flex-col items-center justify-center relative group">
+        <div class="absolute inset-0 bg-cover bg-center opacity-40" style="background-image: url('https://www.google.com/maps/d/u/0/thumbnail?mid=1_KkG8z_K_3H9O9G0U5v_Q_8_7g')"></div>
+        <div class="relative z-10 text-center">
+            <span class="text-3xl mb-2 block">📍</span>
+            <p class="text-[10px] font-black text-gray-600 uppercase tracking-widest bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full border border-gray-200">
+                Route Map (Coming Soon)
+            </p>
         </div>
       </div>
     </div>
 
-    <button id="del-btn" data-id={run.id} class="w-full py-4 text-[10px] font-black text-red-300 hover:text-red-500 uppercase tracking-widest transition-colors">
-      Delete Activity
-    </button>
+    <div class="mt-8 flex gap-4">
+      <button id="delete-btn" class="flex-1 bg-white border-2 border-red-50 text-red-400 py-4 rounded-3xl text-xs font-black uppercase tracking-widest hover:bg-red-50 transition-all">
+        Delete Run
+      </button>
+      <button class="flex-1 bg-gray-800 text-white py-4 rounded-3xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition-all">
+        Share Stats
+      </button>
+    </div>
   </main>
 </Layout>
 
 <script>
   import { supabase } from '../../lib/supabase';
-  document.getElementById('del-btn')?.addEventListener('click', async (e) => {
-    const id = (e.target as HTMLElement).getAttribute('data-id');
-    if (confirm("Yakin mau hapus lari ini?") && id) {
-      const { error } = await supabase.from('activities').delete().eq('id', id);
-      if (!error) window.location.href = '/';
+  
+  const deleteBtn = document.getElementById('delete-btn');
+  const runId = window.location.pathname.split('/').pop();
+
+  deleteBtn?.addEventListener('click', async () => {
+    if (confirm('Yakin mau hapus data lari ini, Den?')) {
+      const { error } = await supabase
+        .from('activities')
+        .delete()
+        .eq('id', runId);
+
+      if (!error) {
+        window.location.href = '/';
+      } else {
+        alert('Gagal menghapus: ' + error.message);
+      }
     }
   });
 </script>
