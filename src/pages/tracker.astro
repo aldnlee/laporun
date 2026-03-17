@@ -6,7 +6,10 @@ import Layout from '../layouts/Layout.astro';
   <main class="p-6 max-w-xl mx-auto font-sans flex flex-col h-screen bg-white">
     
     <div class="text-center mt-4">
-      <h1 class="text-gray-400 uppercase tracking-widest text-[10px] font-bold italic">Ngabuburun Live</h1>
+      <div class="flex justify-center items-center gap-2 mb-1">
+        <div id="gps-dot" class="w-2 h-2 rounded-full bg-gray-300 animate-pulse"></div>
+        <h1 id="gps-status" class="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Mencari Sinyal GPS...</h1>
+      </div>
       
       <div class="my-4">
         <p id="display-distance" class="text-7xl font-black text-orange-600 tracking-tight transition-all">0.00</p>
@@ -53,46 +56,36 @@ import Layout from '../layouts/Layout.astro';
   import 'leaflet/dist/leaflet.css';
   import { supabase } from '../lib/supabase';
 
-  // Elements
   const distanceEl = document.getElementById('display-distance') as HTMLElement;
   const paceEl = document.getElementById('display-pace') as HTMLElement;
   const timeEl = document.getElementById('display-time') as HTMLElement;
+  const statusEl = document.getElementById('gps-status') as HTMLElement;
+  const dotEl = document.getElementById('gps-dot') as HTMLElement;
   const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
   const recenterBtn = document.getElementById('recenter-btn') as HTMLButtonElement;
 
-  // Variables
   let watchId: number | null = null;
   let startTime: number | null = null;
   let totalDistance = 0;
   let lastCoords: L.LatLng | null = null;
   let timerInterval: any = null;
   
-  // Leaflet Objects
   let map: L.Map;
   let pathLine: L.Polyline;
   let marker: L.CircleMarker;
   let routeCoords: L.LatLngExpression[] = [];
 
-  // Inisialisasi Peta (Default ke Jakarta/UIN)
+  // Init Peta
   map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16); 
-  
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-  }).addTo(map);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-  // Fungsi Re-center
   recenterBtn.addEventListener('click', () => {
-    if (lastCoords) {
-      map.flyTo(lastCoords, 17, { animate: true, duration: 1 });
-    } else {
-      alert("GPS belum dapet sinyal, Den!");
-    }
+    if (lastCoords) map.flyTo(lastCoords, 17);
   });
 
-  // Start Running
   startBtn.addEventListener('click', () => {
-    if (!("geolocation" in navigator)) return alert("HP-mu ga support GPS, Den.");
+    if (!("geolocation" in navigator)) return alert("GPS tidak didukung!");
 
     startTime = Date.now();
     startBtn.classList.add('hidden');
@@ -100,58 +93,58 @@ import Layout from '../layouts/Layout.astro';
 
     watchId = navigator.geolocation.watchPosition((position) => {
       const { latitude, longitude, accuracy } = position.coords;
-      
-      // Filter sinyal buruk
-      if (accuracy > 40) return;
-
       const currentLatLng = new L.LatLng(latitude, longitude);
 
-      if (lastCoords) {
-        // Hitung jarak pakai rumus Leaflet
-        const d = lastCoords.distanceTo(currentLatLng) / 1000; // meter ke KM
-        
-        if (d > 0.003) { // Hanya hitung jika pindah > 3 meter
-          totalDistance += d;
-          distanceEl.innerText = totalDistance.toFixed(2);
-          
-          // Gambar Jalur
-          routeCoords.push([latitude, longitude]);
-          if (pathLine) {
-            pathLine.setLatLngs(routeCoords);
-          } else {
-            pathLine = L.polyline(routeCoords, { color: '#f97316', weight: 6, opacity: 0.8 }).addTo(map);
-          }
-
-          // Hitung Pace
-          const durationMin = (Date.now() - startTime!) / 60000;
-          const pace = durationMin / totalDistance;
-          const pMin = Math.floor(pace);
-          const pSec = Math.round((pace - pMin) * 60);
-          paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
-        }
-      }
-
-      // Update Posisi & Marker
-      lastCoords = currentLatLng;
-      map.flyTo(currentLatLng, map.getZoom()); // Ikuti pergerakan pelan-pelan
-      
-      if (marker) {
-        marker.setLatLng(currentLatLng);
+      // Update Indikator Status
+      if (accuracy > 40) {
+        statusEl.innerText = `Sinyal Lemah (${Math.round(accuracy)}m)`;
+        dotEl.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
       } else {
-        marker = L.circleMarker(currentLatLng, { 
-          radius: 10, 
-          color: 'white', 
-          fillColor: '#3b82f6', 
-          fillOpacity: 1, 
-          weight: 3 
-        }).addTo(map);
+        statusEl.innerText = "GPS Terkoneksi";
+        dotEl.className = "w-2 h-2 rounded-full bg-green-500";
       }
+
+      // Lock Posisi Pertama
+      if (!lastCoords) {
+        map.flyTo(currentLatLng, 17);
+        marker = L.circleMarker(currentLatLng, { radius: 10, color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 3 }).addTo(map);
+        lastCoords = currentLatLng;
+        return; 
+      }
+
+      // Hitung Jarak & Gambar Jalur
+      const dist = lastCoords.distanceTo(currentLatLng) / 1000;
+      if (dist > 0.003 && accuracy <= 40) {
+        totalDistance += dist;
+        distanceEl.innerText = totalDistance.toFixed(2);
+        
+        routeCoords.push([latitude, longitude]);
+        if (pathLine) {
+          pathLine.setLatLngs(routeCoords);
+        } else {
+          pathLine = L.polyline(routeCoords, { color: '#f97316', weight: 6 }).addTo(map);
+        }
+
+        // Pace
+        const durationMin = (Date.now() - startTime!) / 60000;
+        const pace = durationMin / totalDistance;
+        const pMin = Math.floor(pace);
+        const pSec = Math.round((pace - pMin) * 60);
+        paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
+      }
+
+      lastCoords = currentLatLng;
+      if (marker) marker.setLatLng(currentLatLng);
+      map.panTo(currentLatLng);
     }, 
-    (err) => console.error(err), 
-    { enableHighAccuracy: true, maximumAge: 1000 }
+    (err) => {
+      statusEl.innerText = "GPS Error!";
+      dotEl.className = "w-2 h-2 rounded-full bg-red-500";
+      console.error(err);
+    }, 
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
     );
 
-    // Timer Visual
     timerInterval = setInterval(() => {
       const diff = Date.now() - startTime!;
       const min = Math.floor(diff / 60000);
@@ -160,46 +153,34 @@ import Layout from '../layouts/Layout.astro';
     }, 1000);
   });
 
-  // Stop & Save
   stopBtn.addEventListener('click', async () => {
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       clearInterval(timerInterval);
-      
-      const confirmSave = confirm("Finish? Data bakal dikirim ke Supabase.");
-      if (!confirmSave) return location.reload();
+      if (!confirm("Simpan lari ini?")) return location.reload();
 
       stopBtn.disabled = true;
       stopBtn.innerText = "SAVING...";
 
-      const durationSec = Math.floor((Date.now() - startTime!) / 1000);
-      
       try {
         const { error } = await supabase.from('activities').insert([{
           title: 'Ngabuburun Sore',
           distance: parseFloat(totalDistance.toFixed(2)),
-          duration: durationSec,
+          duration: Math.floor((Date.now() - startTime!) / 1000),
           created_at: new Date().toISOString()
         }]);
-
         if (error) throw error;
         window.location.href = '/';
       } catch (err) {
-        alert("Gagal simpan! Cek internet.");
+        alert("Gagal simpan!");
         stopBtn.disabled = false;
-        stopBtn.innerText = "RETRY SAVE";
+        stopBtn.innerText = "RETRY";
       }
     }
   });
 </script>
 
 <style>
-  /* Menghilangkan watermark leaflet biar bersih */
-  :global(.leaflet-control-attribution) {
-    display: none;
-  }
-  /* Mencegah highlight biru pas klik map di mobile */
-  #map {
-    -webkit-tap-highlight-color: transparent;
-  }
+  :global(.leaflet-control-attribution) { display: none; }
+  #map { -webkit-tap-highlight-color: transparent; }
 </style>
