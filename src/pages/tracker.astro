@@ -1,39 +1,33 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { supabase } from '../lib/supabase';
-
-// Proteksi Halaman: Cek apakah user sudah login
-const { data: { user } } = await supabase.auth.getUser();
-if (!user) {
-  return Astro.redirect('/login');
-}
+// Frontmatter bersih dari proteksi server-side agar tidak bentrok dengan Netlify SSR
 ---
 
 <Layout title="Tracker - Ngabuburun">
   <main class="p-4 max-w-xl mx-auto font-sans flex flex-col h-screen bg-gray-50">
     
     <div class="bg-white rounded-[32px] p-6 shadow-sm mb-4 border border-gray-100">
-       <div class="flex justify-between items-center mb-4">
-          <div class="flex items-center gap-2">
-            <div id="gps-dot" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
-            <span id="gps-badge" class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Searching GPS</span>
-          </div>
-          <span id="display-time" class="text-2xl font-black font-mono text-gray-800">00:00</span>
-       </div>
-       <div class="text-center py-2">
-          <p id="display-distance" class="text-8xl font-black text-orange-600 tracking-tighter">0.00</p>
-          <p class="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Kilometers</p>
-       </div>
-       <div class="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-50">
-          <div class="text-center">
-            <p id="display-pace" class="text-xl font-black text-gray-800 font-mono">0'00"</p>
-            <p class="text-[10px] font-bold text-gray-400 uppercase">Pace</p>
-          </div>
-          <div class="text-center">
-            <p id="display-steps" class="text-xl font-black text-gray-800 font-mono">0</p>
-            <p class="text-[10px] font-bold text-gray-400 uppercase">Steps</p>
-          </div>
-       </div>
+        <div class="flex justify-between items-center mb-4">
+           <div class="flex items-center gap-2">
+             <div id="gps-dot" class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+             <span id="gps-badge" class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Searching GPS</span>
+           </div>
+           <span id="display-time" class="text-2xl font-black font-mono text-gray-800">00:00</span>
+        </div>
+        <div class="text-center py-2">
+           <p id="display-distance" class="text-8xl font-black text-orange-600 tracking-tighter">0.00</p>
+           <p class="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Kilometers</p>
+        </div>
+        <div class="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-50">
+           <div class="text-center">
+             <p id="display-pace" class="text-xl font-black text-gray-800 font-mono">0'00"</p>
+             <p class="text-[10px] font-bold text-gray-400 uppercase">Pace</p>
+           </div>
+           <div class="text-center">
+             <p id="display-steps" class="text-xl font-black text-gray-800 font-mono">0</p>
+             <p class="text-[10px] font-bold text-gray-400 uppercase">Steps</p>
+           </div>
+        </div>
     </div>
 
     <div class="relative flex-grow rounded-[32px] overflow-hidden mb-4 border-4 border-white shadow-xl">
@@ -57,6 +51,7 @@ if (!user) {
 </Layout>
 
 <script>
+  // @ts-ignore
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { supabase } from '../lib/supabase';
@@ -76,72 +71,91 @@ if (!user) {
   let totalDistance = 0;
   let routeCoords: L.LatLngExpression[] = [];
   let isRunning = false;
+  let currentUser: any = null;
 
-  // 1. Inisialisasi Map (CartoDB Voyager biar clean)
-  map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+  // 1. Inisialisasi Auth & Tracker
+  async function initTracker() {
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
+      window.location.href = '/login';
+      return;
+    }
+    currentUser = session.user;
 
-  // 2. PRE-RUN LOCK (Mencari posisi sebelum lari)
-  const initWatch = navigator.geolocation.watchPosition((pos) => {
-    const { latitude, longitude, accuracy } = pos.coords;
-    const current = new L.LatLng(latitude, longitude);
+    // Inisialisasi Map
+    map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
-    if (accuracy < 40) {
-      badge.innerText = "GPS READY";
-      badge.className = "text-[10px] font-black text-green-500 uppercase tracking-widest";
-      dot.className = "w-2 h-2 rounded-full bg-green-500 animate-ping";
-      
-      if (!isRunning) {
-        startBtn.disabled = false;
-        startBtn.innerText = "Start Running";
-        startBtn.className = "w-full bg-orange-500 text-white py-5 rounded-[24px] font-black text-xl shadow-lg shadow-orange-200 active:scale-95 transition-all uppercase italic tracking-widest cursor-pointer";
-      }
-    } else {
-        badge.innerText = `Weak Signal (${Math.round(accuracy)}m)`;
+    // Mulai GPS Watch
+    startGPSWatch();
+  }
+
+  function startGPSWatch() {
+    if (!navigator.geolocation) {
+      alert("Browser kamu gak support GPS, Den!");
+      return;
     }
 
-    // Update Marker Posisi
-    if (!marker) {
-      marker = L.circleMarker(current, { radius: 10, fillColor: '#3b82f6', color: '#fff', fillOpacity: 1, weight: 4 }).addTo(map);
-      map.flyTo(current, 17);
-    } else {
-      marker.setLatLng(current);
-    }
+    navigator.geolocation.watchPosition((pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const current = new L.LatLng(latitude, longitude);
 
-    // Tracking Logic saat tombol Start diklik
-    if (isRunning && lastCoords) {
-      const d = lastCoords.distanceTo(current) / 1000;
-      if (d > 0.002 && accuracy < 50) { // Hanya rekam jika bergerak > 2m & akurasi OK
-        totalDistance += d;
-        distanceEl.innerText = totalDistance.toFixed(2);
-
-        // Update Garis Rute (Highlight ala Strava)
-        routeCoords.push([latitude, longitude]);
-        if (pathLine) {
-          pathLine.setLatLngs(routeCoords);
-        } else {
-          pathLine = L.polyline(routeCoords, { color: '#ff4500', weight: 8, opacity: 0.9, lineJoin: 'round' }).addTo(map);
+      // GPS Lock UI
+      if (accuracy < 40) {
+        badge.innerText = "GPS READY";
+        badge.className = "text-[10px] font-black text-green-500 uppercase tracking-widest";
+        dot.className = "w-2 h-2 rounded-full bg-green-500 animate-ping";
+        
+        if (!isRunning) {
+          startBtn.disabled = false;
+          startBtn.innerText = "Start Running";
+          startBtn.className = "w-full bg-orange-500 text-white py-5 rounded-[24px] font-black text-xl shadow-lg shadow-orange-200 active:scale-95 transition-all uppercase italic tracking-widest cursor-pointer";
         }
-
-        // Hitung Pace
-        const durationMin = (Date.now() - startTime) / 60000;
-        const pace = durationMin / totalDistance;
-        const pMin = Math.floor(pace);
-        const pSec = Math.round((pace - pMin) * 60);
-        paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
+      } else {
+        badge.innerText = `Weak Signal (${Math.round(accuracy)}m)`;
       }
-    }
-    lastCoords = current;
-  }, (err) => console.error(err), { enableHighAccuracy: true });
 
-  // 3. START RUNNING
+      // Update Marker Posisi
+      if (!marker) {
+        marker = L.circleMarker(current, { radius: 10, fillColor: '#3b82f6', color: '#fff', fillOpacity: 1, weight: 4 }).addTo(map);
+        map.flyTo(current, 17);
+      } else {
+        marker.setLatLng(current);
+      }
+
+      // Tracking Logic saat lari
+      if (isRunning && lastCoords) {
+        const d = lastCoords.distanceTo(current) / 1000;
+        if (d > 0.002 && accuracy < 50) { 
+          totalDistance += d;
+          distanceEl.innerText = totalDistance.toFixed(2);
+
+          routeCoords.push([latitude, longitude]);
+          if (pathLine) {
+            pathLine.setLatLngs(routeCoords);
+          } else {
+            pathLine = L.polyline(routeCoords, { color: '#ff4500', weight: 8, opacity: 0.9, lineJoin: 'round' }).addTo(map);
+          }
+
+          const durationMin = (Date.now() - startTime) / 60000;
+          const pace = durationMin / totalDistance;
+          const pMin = Math.floor(pace);
+          const pSec = Math.round((pace - pMin) * 60);
+          paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
+        }
+      }
+      lastCoords = current;
+    }, (err) => console.error(err), { enableHighAccuracy: true });
+  }
+
+  // Event Listeners
   startBtn.addEventListener('click', () => {
     isRunning = true;
     startTime = Date.now();
     startBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
 
-    // Timer Visual
     timerInterval = setInterval(() => {
       const diff = Date.now() - startTime;
       const h = Math.floor(diff / 3600000);
@@ -153,7 +167,6 @@ if (!user) {
     }, 1000);
   });
 
-  // 4. STOP & RENAME
   stopBtn.addEventListener('click', async () => {
     const activityName = prompt("Kasih nama lari kamu, Den:", "Ngabuburun Sore");
     
@@ -162,13 +175,12 @@ if (!user) {
       stopBtn.innerText = "Saving to Cloud...";
       
       const durationSec = Math.floor((Date.now() - startTime) / 1000);
-      const { data: { user } } = await supabase.auth.getUser();
 
       const { error } = await supabase.from('activities').insert([{
         title: activityName,
         distance: parseFloat(totalDistance.toFixed(2)),
         duration: durationSec,
-        user_id: user?.id,
+        user_id: currentUser?.id,
         created_at: new Date().toISOString()
       }]);
 
@@ -185,6 +197,9 @@ if (!user) {
   recenterBtn.addEventListener('click', () => {
     if (lastCoords) map.flyTo(lastCoords, 17);
   });
+
+  // Jalankan inisialisasi
+  initTracker();
 </script>
 
 <style>

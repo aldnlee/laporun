@@ -1,11 +1,8 @@
 {
   "extends": "astro/tsconfigs/strict",
-  "include": [
-    ".astro/types.d.ts",
-    "**/*",
-    "./worker-configuration.d.ts"
-  ],
-  "exclude": [
-    "dist"
-  ]
+  "compilerOptions": {
+    "types": ["@types/leaflet"], // Tambahkan baris ini jika perlu
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
+  }
 }
