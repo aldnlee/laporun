@@ -3,30 +3,52 @@ import Layout from '../../layouts/Layout.astro';
 import { supabase } from '../../lib/supabase';
 
 const { id } = Astro.params;
-const { data: run } = await supabase.from('activities').select('*').eq('id', id).single();
+const { data: run, error } = await supabase.from('activities').select('*').eq('id', id).single();
 
-if (!run) return Astro.redirect('/');
+if (error || !run) return Astro.redirect('/');
+
+const avgPace = run.distance > 0 ? (run.duration / 60) / run.distance : 0;
 ---
-
-<Layout title="Detail Lari">
-  <main class="p-6 max-w-xl mx-auto bg-white min-h-screen">
-    <a href="/" class="text-orange-500 font-bold text-sm">← KEMBALI</a>
+<Layout title={run.title}>
+  <main class="p-6 max-w-xl mx-auto bg-white min-h-screen font-sans">
+    <a href="/" class="text-orange-500 font-bold text-[10px] uppercase tracking-widest mb-8 block">← Back to Dashboard</a>
     
-    <div class="mt-8">
-      <h1 class="text-4xl font-black text-gray-800">{run.title}</h1>
-      <p class="text-gray-400 font-bold uppercase">{new Date(run.created_at).toLocaleString()}</p>
+    <header class="mb-8">
+      <h1 class="text-4xl font-black italic text-gray-800 uppercase leading-none mb-2">{run.title}</h1>
+      <p class="text-xs font-bold text-gray-400">{new Date(run.created_at).toLocaleString('id-ID')}</p>
+    </header>
+
+    <div class="grid grid-cols-1 gap-4 mb-10">
+      <div class="bg-orange-50 p-10 rounded-[40px] border border-orange-100">
+        <p class="text-7xl font-black text-orange-600 leading-none mb-2">{run.distance.toFixed(2)}</p>
+        <p class="text-xs font-black text-orange-400 uppercase tracking-[0.3em]">Kilometers</p>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-gray-50 p-6 rounded-[30px]">
+          <p class="text-2xl font-black text-gray-800">{Math.floor(run.duration / 60)}m {run.duration % 60}s</p>
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Time</p>
+        </div>
+        <div class="bg-gray-50 p-6 rounded-[30px]">
+          <p class="text-2xl font-black text-gray-800">{avgPace.toFixed(2)}'/km</p>
+          <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Avg Pace</p>
+        </div>
+      </div>
     </div>
 
-    <div class="grid grid-cols-2 gap-4 my-10">
-      <div class="bg-orange-50 p-6 rounded-3xl">
-        <p class="text-5xl font-black text-orange-600">{run.distance}</p>
-        <p class="text-xs font-bold text-orange-400 italic tracking-widest">KILOMETER</p>
-      </div>
-      <div class="bg-gray-50 p-6 rounded-3xl">
-        <p class="text-3xl font-black text-gray-800">{Math.floor(run.duration / 60)}m {run.duration % 60}s</p>
-        <p class="text-xs font-bold text-gray-400 italic tracking-widest">DURATION</p>
-      </div>
-    </div>
-    
-    </main>
+    <button id="del-btn" data-id={run.id} class="w-full py-4 text-[10px] font-black text-red-300 hover:text-red-500 uppercase tracking-widest transition-colors">
+      Delete Activity
+    </button>
+  </main>
 </Layout>
+
+<script>
+  import { supabase } from '../../lib/supabase';
+  document.getElementById('del-btn')?.addEventListener('click', async (e) => {
+    const id = (e.target as HTMLElement).getAttribute('data-id');
+    if (confirm("Yakin mau hapus lari ini?") && id) {
+      const { error } = await supabase.from('activities').delete().eq('id', id);
+      if (!error) window.location.href = '/';
+    }
+  });
+</script>
