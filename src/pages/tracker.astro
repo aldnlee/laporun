@@ -1,0 +1,117 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+
+<Layout title="Live Tracking - Ngabuburun">
+  <main class="p-6 max-w-xl mx-auto font-sans flex flex-col h-screen justify-between">
+    <div class="text-center mt-10">
+      <h1 class="text-gray-500 uppercase tracking-widest text-sm font-bold">Live Tracking</h1>
+      
+      <div class="my-10">
+        <p id="display-distance" class="text-8xl font-black text-orange-600">0.00</p>
+        <p class="text-xl font-bold text-gray-400">KILOMETER</p>
+      </div>
+
+      <div class="grid grid-cols-2 gap-8 border-t border-b py-8">
+        <div>
+          <p id="display-pace" class="text-3xl font-bold text-gray-800">0'00"</p>
+          <p class="text-xs text-gray-400 uppercase">Pace (min/km)</p>
+        </div>
+        <div>
+          <p id="display-time" class="text-3xl font-bold text-gray-800">00:00</p>
+          <p class="text-xs text-gray-400 uppercase">Waktu</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="mb-10 flex flex-col gap-4">
+      <button id="start-btn" class="w-full bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg">
+        MULAI LARI
+      </button>
+      <button id="stop-btn" class="hidden w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg">
+        BERHENTI & SIMPAN
+      </button>
+    </div>
+  </main>
+
+  <script>
+
+  // Pakai type assertion 'as HTMLElement' supaya merah-merahnya hilang
+  const distanceEl = document.getElementById('display-distance') as HTMLElement;
+  const paceEl = document.getElementById('display-pace') as HTMLElement;
+  const timeEl = document.getElementById('display-time') as HTMLElement;
+  const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+  const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
+
+  let watchId: number | null = null;
+  let startTime: number | null = null;
+  let totalDistance = 0; 
+  let lastCoords: { latitude: number; longitude: number } | null = null;
+
+  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+
+  startBtn.addEventListener('click', () => {
+    startTime = Date.now();
+    startBtn.classList.add('hidden');
+    stopBtn.classList.remove('hidden');
+
+    if ("geolocation" in navigator) {
+      watchId = navigator.geolocation.watchPosition((position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+
+        if (accuracy > 30) return; // Toleransi 30 meter biar nggak terlalu ketat
+
+        if (lastCoords) {
+          const d = calculateDistance(lastCoords.latitude, lastCoords.longitude, latitude, longitude);
+          
+          // Akumulasi jarak jika bergerak lebih dari 5 meter (mengurangi GPS jitter)
+          if (d > 0.005) { 
+            totalDistance += d;
+            distanceEl.innerText = totalDistance.toFixed(2);
+            
+            if (startTime && totalDistance > 0) {
+              const durationMin = (Date.now() - startTime) / 60000;
+              const pace = durationMin / totalDistance;
+              const paceMin = Math.floor(pace);
+              const paceSec = Math.round((pace - paceMin) * 60);
+              paceEl.innerText = `${paceMin}'${paceSec.toString().padStart(2, '0')}"`;
+            }
+          }
+        }
+        lastCoords = { latitude, longitude };
+      }, (err) => console.error(err), {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000
+      });
+
+      // Timer Update
+      setInterval(() => {
+        if (startTime) {
+          const diff = Date.now() - startTime;
+          const min = Math.floor(diff / 60000);
+          const sec = Math.floor((diff % 60000) / 1000);
+          timeEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+        }
+      }, 1000);
+    }
+  });
+
+  stopBtn.addEventListener('click', () => {
+    if (watchId !== null) {
+      navigator.geolocation.clearWatch(watchId);
+      alert(`Lari selesai! Jarak: ${totalDistance.toFixed(2)} KM`);
+      // Nanti di sini kita tambah fungsi simpan ke Supabase
+      location.href = '/'; // Balik ke dashboard
+    }
+  });
+</script>
+</Layout>
