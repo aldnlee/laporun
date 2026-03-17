@@ -1,6 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-// Pastikan import CSS global ada di sini atau di Layout
 import '../styles/global.css';
 ---
 
@@ -21,13 +20,20 @@ import '../styles/global.css';
       width: 100% !important;
       height: 100% !important;
     }
+    .animate-progress {
+      animation: progress 2s ease-in-out infinite;
+    }
+    @keyframes progress {
+      0% { transform: translateX(-100%); }
+      100% { transform: translateX(100%); }
+    }
   </style>
 
   <div id="global-loader" class="fixed inset-0 bg-white z-[9999] flex items-center justify-center">
     <div class="text-center">
       <p class="text-orange-600 font-black italic animate-bounce uppercase tracking-widest">Ngabuburun...</p>
-      <div class="mt-2 h-1 w-24 bg-orange-100 rounded-full overflow-hidden">
-        <div class="h-full bg-orange-600 animate-pulse"></div>
+      <div class="mt-2 h-1 w-24 bg-orange-100 rounded-full overflow-hidden relative">
+        <div class="absolute inset-0 bg-orange-600 animate-progress"></div>
       </div>
     </div>
   </div>
@@ -36,14 +42,13 @@ import '../styles/global.css';
     
     <header class="col-span-1 lg:col-span-3 flex flex-col md:flex-row justify-between items-start md:items-center mb-2 gap-4">
       <div>
-        <h1 class="text-3xl font-black italic text-orange-600 tracking-tighter uppercase leading-none">Athlete Dashboard</h1>
+        <h1 class="text-3xl font-black italic text-orange-600 tracking-tighter uppercase leading-none italic">Athlete Dashboard</h1>
         <p id="user-name" class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.3em] mt-2">Loading profile...</p>
       </div>
       
       <div class="flex items-center gap-4 bg-white p-2 pr-5 rounded-full shadow-sm border border-gray-100">
-        <div id="sync-status" class="hidden px-3 py-1 bg-green-50 text-green-600 text-[8px] font-black uppercase rounded-full animate-pulse">Syncing...</div>
-        <img id="user-avatar" src="" class="w-10 h-10 rounded-full border-2 border-orange-100 hidden" />
-        <button id="logout-btn" class="text-[10px] font-black text-gray-400 hover:text-red-500 uppercase tracking-widest transition-colors">Logout</button>
+        <img id="user-avatar" src="" class="w-10 h-10 rounded-full border-2 border-orange-100 hidden" alt="Avatar" />
+        <button id="logout-btn" class="text-[10px] font-black text-gray-400 hover:text-red-500 uppercase tracking-widest transition-colors cursor-pointer">Logout</button>
       </div>
     </header>
 
@@ -73,11 +78,11 @@ import '../styles/global.css';
       </div>
 
       <div class="bg-orange-600 p-8 rounded-[40px] text-white shadow-2xl shadow-orange-200">
-         <h3 class="text-[10px] font-black opacity-70 uppercase tracking-widest mb-4 italic text-white/80">Action Centre</h3>
-         <p class="text-sm font-bold leading-relaxed mb-6">Import via GPX atau lari langsung!</p>
+         <h3 class="text-[10px] font-black opacity-70 uppercase tracking-widest mb-4 italic text-orange-100">Action Centre</h3>
+         <p class="text-sm font-bold leading-relaxed mb-6 text-white">Import via GPX atau lari langsung sekarang!</p>
          <div class="flex flex-col gap-3">
            <label class="w-full cursor-pointer bg-orange-700 hover:bg-orange-800 text-white py-4 rounded-2xl text-[10px] font-black transition-all text-center uppercase tracking-widest">
-             Import GPX File
+             <span id="gpx-label">Import GPX File</span>
              <input type="file" id="gpx-input" accept=".gpx" class="hidden" />
            </label>
            <a href="/tracker" class="w-full bg-white text-orange-600 py-4 rounded-2xl text-[10px] font-black text-center shadow-lg hover:scale-[1.02] transition-all uppercase tracking-widest">
@@ -101,24 +106,90 @@ import '../styles/global.css';
 
 <script>
   import { supabase } from '../lib/supabase';
-  // PENTING: Hapus import getPendingRuns & deleteLocalRun karena fitur offline dihapus
-  // Jika kamu menghapus file src/lib/db.ts, baris di bawah ini akan menyebabkan error build
-  // import { getPendingRuns, deleteLocalRun } from '../lib/db'; 
 
   const loader = document.getElementById('global-loader');
   const content = document.getElementById('dashboard-content');
   const activitiesList = document.getElementById('activities-list');
   const gpxInput = document.getElementById('gpx-input') as HTMLInputElement;
+  const gpxLabel = document.getElementById('gpx-label');
 
   let weeklyChart: any = null;
+
+  // --- Helper: Hitung Jarak ---
+  function getDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
+  }
+
+  // --- Logika Import GPX ---
+  gpxInput?.addEventListener('change', async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+
+    if (gpxLabel) gpxLabel.innerText = "Processing File...";
+
+    try {
+      const gpxText = await file.text();
+      const parser = new DOMParser();
+      const gpxXml = parser.parseFromString(gpxText, "text/xml");
+      const trkpts = Array.from(gpxXml.querySelectorAll('trkpt'));
+
+      if (trkpts.length === 0) throw new Error("GPX tidak memiliki koordinat.");
+
+      let cumulativeDistance = 0;
+      let routeData: any[] = [];
+      const startTimeStr = trkpts[0].querySelector('time')?.textContent;
+      if (!startTimeStr) throw new Error("Data waktu tidak ditemukan.");
+      const startTime = new Date(startTimeStr).getTime();
+
+      trkpts.forEach((pt, index) => {
+        const lat = parseFloat(pt.getAttribute('lat') || '0');
+        const lon = parseFloat(pt.getAttribute('lon') || '0');
+        const timeStr = pt.querySelector('time')?.textContent;
+        
+        if (index > 0) {
+          const prev = trkpts[index - 1];
+          cumulativeDistance += getDistance(
+            parseFloat(prev.getAttribute('lat') || '0'),
+            parseFloat(prev.getAttribute('lon') || '0'),
+            lat, lon
+          );
+        }
+
+        const elapsedSec = timeStr ? Math.floor((new Date(timeStr).getTime() - startTime) / 1000) : 0;
+        routeData.push({ lat, lng: lon, time: elapsedSec, dist: cumulativeDistance });
+      });
+
+      const title = prompt("Nama Lari:", "Morning Run (GPX)") || "Imported Run";
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const { error } = await supabase.from('activities').insert([{
+        title,
+        distance: parseFloat(cumulativeDistance.toFixed(2)),
+        duration: routeData[routeData.length - 1].time,
+        user_id: session?.user?.id,
+        route_data: routeData,
+        created_at: new Date(startTime).toISOString()
+      }]);
+
+      if (error) throw error;
+      window.location.reload();
+    } catch (err: any) {
+      alert(err.message);
+      if (gpxLabel) gpxLabel.innerText = "Import GPX File";
+    }
+  });
 
   async function initDashboard() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { window.location.href = '/login'; return; }
 
     const user = session.user;
-    
-    // TAMPILKAN UI DULU agar Chart.js bisa mengukur canvas
     loader?.classList.add('hidden');
     content?.classList.remove('hidden');
 
@@ -130,7 +201,6 @@ import '../styles/global.css';
         avatar.classList.remove('hidden');
     }
 
-    // Load Data Langsung
     await loadActivities(user.id);
   }
 
@@ -155,7 +225,7 @@ import '../styles/global.css';
           activitiesList.innerHTML = `<div class="text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-gray-100"><p class="text-gray-300 font-black italic uppercase tracking-widest text-xs">No runs recorded yet.</p></div>`;
         } else {
           activitiesList.innerHTML = activities.map(run => `
-            <a href="/run/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
+            <a href="/activity/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
               <div class="flex justify-between items-center">
                 <div>
                   <h3 class="font-black text-gray-800 text-xl italic uppercase group-hover:text-orange-600 transition-colors leading-none">${run.title}</h3>
@@ -213,9 +283,7 @@ import '../styles/global.css';
     });
   }
 
-  // --- LOGOUT TETAP SAMA ---
-  const logoutBtn = document.getElementById('logout-btn');
-  logoutBtn?.addEventListener('click', async () => {
+  document.getElementById('logout-btn')?.addEventListener('click', async () => {
     await supabase.auth.signOut();
     window.location.href = '/login';
   });
