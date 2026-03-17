@@ -2,51 +2,54 @@
 import Layout from '../layouts/Layout.astro';
 ---
 
-<Layout title="Live Tracking - Ngabuburun">
-  <main class="p-6 max-w-xl mx-auto font-sans flex flex-col h-screen bg-white">
+<Layout title="Ngabuburun - Pro Tracker">
+  <main class="p-4 max-w-xl mx-auto font-sans flex flex-col h-screen bg-gray-50">
     
-    <div class="text-center mt-4">
-      <div class="flex justify-center items-center gap-2 mb-1">
-        <div id="gps-dot" class="w-2 h-2 rounded-full bg-gray-300 animate-pulse"></div>
-        <h1 id="gps-status" class="text-gray-400 uppercase tracking-widest text-[10px] font-bold italic">Menginisialisasi GPS...</h1>
-      </div>
-      
-      <div class="my-4">
-        <p id="display-distance" class="text-7xl font-black text-orange-600 tracking-tight transition-all">0.00</p>
-        <p class="text-sm font-bold text-gray-400 uppercase tracking-widest">Kilometer</p>
+    <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 mb-4">
+      <div class="flex justify-between items-start mb-4">
+        <div>
+          <p id="display-distance" class="text-6xl font-black text-orange-600">0.00</p>
+          <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">Total Kilometer</p>
+        </div>
+        <div class="text-right">
+          <div id="gps-dot" class="inline-block w-2 h-2 rounded-full bg-gray-300 mr-1"></div>
+          <span id="gps-status" class="text-[10px] font-bold text-gray-400 uppercase">Mencari GPS...</span>
+        </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4 border-y border-gray-100 py-4 mb-4">
-        <div class="border-r border-gray-100">
-          <p id="display-pace" class="text-2xl font-bold text-gray-800">0'00"</p>
-          <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Pace (min/km)</p>
+      <div class="grid grid-cols-2 gap-4 pt-4 border-t border-gray-50">
+        <div>
+          <p id="display-pace" class="text-2xl font-black text-gray-800 font-mono">0'00"</p>
+          <p class="text-[10px] text-gray-400 uppercase font-bold">Current Pace</p>
         </div>
         <div>
-          <p id="display-time" class="text-2xl font-bold text-gray-800">00:00</p>
-          <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Waktu</p>
+          <p id="display-time" class="text-2xl font-black text-gray-800 font-mono">00:00</p>
+          <p class="text-[10px] text-gray-400 uppercase font-bold">Duration</p>
         </div>
       </div>
     </div>
 
-    <div class="relative flex-grow mb-6 overflow-hidden rounded-3xl border-2 border-gray-100 shadow-inner group min-h-[300px]">
-      <div id="map" class="absolute inset-0 z-0 bg-gray-50"></div>
-      
-      <button id="recenter-btn" class="absolute bottom-4 right-4 z-[1000] bg-white p-3 rounded-2xl shadow-xl active:scale-90 transition-all border border-gray-100 hover:bg-orange-50 group">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-500 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-        </svg>
-      </button>
+    <div class="flex-grow flex flex-col gap-4 overflow-hidden">
+      <div class="relative h-1/2 min-h-[250px] rounded-3xl overflow-hidden shadow-inner border-2 border-white">
+        <div id="map" class="absolute inset-0 z-0"></div>
+        <button id="recenter-btn" class="absolute bottom-4 right-4 z-[1000] bg-white/90 backdrop-blur p-3 rounded-2xl shadow-lg border border-white">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          </svg>
+        </button>
+      </div>
+
+      <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-100 flex-grow overflow-y-auto">
+        <h3 class="text-sm font-black text-gray-800 uppercase mb-4 italic">Splits (Per KM)</h3>
+        <div id="splits-container" class="space-y-3">
+          <p class="text-gray-300 text-xs italic">Belum ada data lap...</p>
+        </div>
+      </div>
     </div>
 
-    <div class="mb-6 flex flex-col gap-4">
-      <button id="start-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg shadow-orange-100 active:scale-95 transition-all">
-        MULAI LARI
-      </button>
-      
-      <button id="stop-btn" class="hidden w-full bg-red-500 hover:bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg shadow-red-100 active:scale-95 transition-all">
-        BERHENTI & SIMPAN
-      </button>
+    <div class="py-4 flex gap-3">
+      <button id="start-btn" class="flex-grow bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all">START</button>
+      <button id="stop-btn" class="hidden flex-grow bg-red-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg active:scale-95 transition-all font-mono">FINISH</button>
     </div>
   </main>
 </Layout>
@@ -56,116 +59,110 @@ import Layout from '../layouts/Layout.astro';
   import 'leaflet/dist/leaflet.css';
   import { supabase } from '../lib/supabase';
 
-  const distanceEl = document.getElementById('display-distance') as HTMLElement;
-  const paceEl = document.getElementById('display-pace') as HTMLElement;
-  const timeEl = document.getElementById('display-time') as HTMLElement;
-  const statusEl = document.getElementById('gps-status') as HTMLElement;
-  const dotEl = document.getElementById('gps-dot') as HTMLElement;
+  const distanceEl = document.getElementById('display-distance')!;
+  const paceEl = document.getElementById('display-pace')!;
+  const timeEl = document.getElementById('display-time')!;
+  const splitsContainer = document.getElementById('splits-container')!;
+  const statusEl = document.getElementById('gps-status')!;
+  const dotEl = document.getElementById('gps-dot')!;
   const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
-  const recenterBtn = document.getElementById('recenter-btn') as HTMLButtonElement;
+  const recenterBtn = document.getElementById('recenter-btn')!;
 
-  let watchId: number | null = null;
-  let startTime: number | null = null;
-  let totalDistance = 0;
-  let lastCoords: L.LatLng | null = null;
-  let timerInterval: any = null;
-  
-  let map: L.Map;
-  let pathLine: L.Polyline;
-  let marker: L.CircleMarker;
+  let watchId: any, startTime: any, timerInterval: any;
+  let totalDistance = 0, lastCoords: L.LatLng | null = null;
+  let map: L.Map, pathLine: L.Polyline, marker: L.CircleMarker;
   let routeCoords: L.LatLngExpression[] = [];
+  
+  // Logic Splits
+  let lastSplitKm = 0;
+  let splitStartTime = 0;
 
-  // 1. Setup Peta SEGERA
-  map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16); 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+  // Init Map
+  map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
-  // 2. Fungsi Minta Izin GPS Langsung (Auto-run)
-  function initGPS() {
-    if (!("geolocation" in navigator)) {
-      statusEl.innerText = "Browser tidak support GPS";
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition((position) => {
-      const { latitude, longitude, accuracy } = position.coords;
-      const currentLatLng = new L.LatLng(latitude, longitude);
-
-      statusEl.innerText = "GPS Siap (" + Math.round(accuracy) + "m)";
-      dotEl.className = "w-2 h-2 rounded-full bg-green-500";
-      
-      map.flyTo(currentLatLng, 17);
-      
-      if (!marker) {
-        marker = L.circleMarker(currentLatLng, { radius: 10, color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 3 }).addTo(map);
-      }
-      lastCoords = currentLatLng;
-    }, (err) => {
-      statusEl.innerText = "Klik 'Mulai' untuk izinkan GPS";
-      console.warn("Init GPS ditolak atau timeout");
-    }, { enableHighAccuracy: true, timeout: 5000 });
+  function formatPace(paceMin: number) {
+    const min = Math.floor(paceMin);
+    const sec = Math.round((paceMin - min) * 60);
+    return `${min}'${sec.toString().padStart(2, '0')}"`;
   }
 
-  initGPS();
+  function addSplit(km: number, pace: string) {
+    if (km === 1) splitsContainer.innerHTML = ''; // Hapus placeholder
+    const row = document.createElement('div');
+    row.className = "flex items-center gap-4";
+    row.innerHTML = `
+      <span class="text-xs font-bold text-gray-400 w-8">KM ${km}</span>
+      <div class="flex-grow bg-gray-100 h-6 rounded-full overflow-hidden relative">
+        <div class="bg-orange-400 h-full transition-all" style="width: ${Math.min(100, (10 / parseFloat(pace)) * 100)}%"></div>
+        <span class="absolute inset-y-0 right-3 flex items-center text-[10px] font-black text-gray-600">${pace}</span>
+      </div>
+    `;
+    splitsContainer.prepend(row);
+  }
 
-  recenterBtn.addEventListener('click', () => {
-    if (lastCoords) map.flyTo(lastCoords, 17);
-  });
-
-  // 3. Logic Start Tracking
   startBtn.addEventListener('click', () => {
     startTime = Date.now();
+    splitStartTime = Date.now();
     startBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
 
-    watchId = navigator.geolocation.watchPosition((position) => {
-      const { latitude, longitude, accuracy } = position.coords;
+    watchId = navigator.geolocation.watchPosition((pos) => {
+      const { latitude, longitude, accuracy } = pos.coords;
       const currentLatLng = new L.LatLng(latitude, longitude);
 
-      // Indikator Akurasi
-      if (accuracy > 40) {
-        statusEl.innerText = `Sinyal Kurang (${Math.round(accuracy)}m)`;
-        dotEl.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
-      } else {
-        statusEl.innerText = "Tracking Aktif";
-        dotEl.className = "w-2 h-2 rounded-full bg-green-500 animate-ping";
-      }
+      // Status visual
+      dotEl.className = `inline-block w-2 h-2 rounded-full ${accuracy < 20 ? 'bg-green-500' : 'bg-yellow-400'} animate-ping`;
+      statusEl.innerText = accuracy < 20 ? 'Signal Strong' : 'Signal Weak';
 
       if (lastCoords) {
-        const dist = lastCoords.distanceTo(currentLatLng) / 1000;
-        // Hanya hitung jika akurasi OK dan gerak nyata
-        if (dist > 0.003 && accuracy <= 50) {
-          totalDistance += dist;
+        const d = lastCoords.distanceTo(currentLatLng) / 1000;
+        if (d > 0.002 && accuracy < 40) {
+          totalDistance += d;
           distanceEl.innerText = totalDistance.toFixed(2);
-          
+
+          // Update Map Line (Highlight ala Strava)
           routeCoords.push([latitude, longitude]);
           if (pathLine) {
             pathLine.setLatLngs(routeCoords);
           } else {
-            pathLine = L.polyline(routeCoords, { color: '#f97316', weight: 6, lineJoin: 'round' }).addTo(map);
+            pathLine = L.polyline(routeCoords, {
+              color: '#ff4500', 
+              weight: 8, 
+              opacity: 0.9,
+              lineJoin: 'round',
+              shadowBlur: 10,
+              shadowColor: '#ff4500'
+            } as any).addTo(map);
           }
 
-          const durationMin = (Date.now() - startTime!) / 60000;
-          const pace = durationMin / totalDistance;
-          const pMin = Math.floor(pace);
-          const pSec = Math.round((pace - pMin) * 60);
-          paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
+          // Pace calculation
+          const durationMin = (Date.now() - startTime) / 60000;
+          paceEl.innerText = formatPace(durationMin / totalDistance);
+
+          // SPLITS LOGIC (Setiap 1 KM)
+          if (Math.floor(totalDistance) > lastSplitKm) {
+            lastSplitKm = Math.floor(totalDistance);
+            const splitDurationMin = (Date.now() - splitStartTime) / 60000;
+            addSplit(lastSplitKm, formatPace(splitDurationMin));
+            splitStartTime = Date.now(); // Reset buat KM berikutnya
+          }
         }
       }
 
       lastCoords = currentLatLng;
-      if (marker) marker.setLatLng(currentLatLng);
-      map.panTo(currentLatLng);
-    }, 
-    (err) => {
-      statusEl.innerText = "Koneksi Terputus";
-      dotEl.className = "w-2 h-2 rounded-full bg-red-500";
-    }, 
-    { enableHighAccuracy: true, maximumAge: 0 }
-    );
+      if (!marker) {
+        marker = L.circleMarker(currentLatLng, { radius: 8, color: '#fff', fillColor: '#3b82f6', fillOpacity: 1, weight: 4 }).addTo(map);
+        map.flyTo(currentLatLng, 17);
+      } else {
+        marker.setLatLng(currentLatLng);
+        map.panTo(currentLatLng);
+      }
+    }, null, { enableHighAccuracy: true });
 
     timerInterval = setInterval(() => {
-      const diff = Date.now() - startTime!;
+      const diff = Date.now() - startTime;
       const min = Math.floor(diff / 60000);
       const sec = Math.floor((diff % 60000) / 1000);
       timeEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
@@ -173,33 +170,32 @@ import Layout from '../layouts/Layout.astro';
   });
 
   stopBtn.addEventListener('click', async () => {
-    if (watchId !== null) {
+    if (confirm("Lari sudah selesai?")) {
       navigator.geolocation.clearWatch(watchId);
       clearInterval(timerInterval);
-      if (!confirm("Sudah lemas? Simpan datanya ya!")) return;
-
+      
       stopBtn.disabled = true;
       stopBtn.innerText = "SAVING...";
 
-      try {
-        const { error } = await supabase.from('activities').insert([{
-          title: 'Ngabuburun Sore',
-          distance: parseFloat(totalDistance.toFixed(2)),
-          duration: Math.floor((Date.now() - startTime!) / 1000),
-          created_at: new Date().toISOString()
-        }]);
-        if (error) throw error;
-        window.location.href = '/';
-      } catch (err) {
-        alert("Gagal simpan ke database!");
-        stopBtn.disabled = false;
-        stopBtn.innerText = "RETRY";
-      }
+      const { error } = await supabase.from('activities').insert([{
+        distance: parseFloat(totalDistance.toFixed(2)),
+        duration: Math.floor((Date.now() - startTime) / 1000),
+        created_at: new Date().toISOString()
+      }]);
+
+      if (!error) window.location.href = '/';
+      else { alert("Gagal simpan!"); stopBtn.disabled = false; }
     }
   });
+
+  recenterBtn.addEventListener('click', () => lastCoords && map.flyTo(lastCoords, 17));
 </script>
 
 <style>
   :global(.leaflet-control-attribution) { display: none; }
-  #map { -webkit-tap-highlight-color: transparent; outline: none; }
+  #map { outline: none; }
+  /* Custom shadow untuk garis lari */
+  .leaflet-interactive {
+    filter: drop-shadow(0 0 5px rgba(255, 69, 0, 0.5));
+  }
 </style>
