@@ -6,18 +6,9 @@ export default defineConfig({
   output: 'server',
   adapter: cloudflare({
     mode: 'directory',
-    // Tambahkan ini untuk menghilangkan warning dideprecated
-    entrypointResolution: 'auto' 
+    // Kita matikan fitur-fitur yang memicu error config otomatis
+    imageService: 'passthrough', 
   }),
-  image: {
-    service: {
-      entrypoint: 'astro/assets/services/noop'
-    }
-  },
   integrations: [tailwind()],
-  vite: {
-    ssr: {
-      external: ['node:buffer', 'node:stream', 'node:util', 'node:path', 'node:url', 'node:events', 'node:crypto', 'node:child_process', 'node:os', 'fs']
-    }
-  }
+  // Pastikan tidak ada settingan 'image' yang aneh di sini
 });
