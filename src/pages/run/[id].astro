@@ -34,12 +34,12 @@ import Layout from '../../layouts/Layout.astro';
         </div>
       </div>
 
-      <div id="detail-map" class="h-80 w-full bg-gray-200 z-0"></div>
+      <div id="detail-map" class="h-80 w-full bg-gray-200 z-0 border-b border-gray-50"></div>
     </div>
 
-    <div id="splits-container" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6 hidden">
-      <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Kilometer Splits</h2>
-      <div id="splits-list" class="space-y-2">
+    <div id="splits-container" class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 mb-6 hidden">
+      <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Kilometer Splits</h2>
+      <div id="splits-list" class="space-y-6">
         </div>
     </div>
 
@@ -78,7 +78,6 @@ import Layout from '../../layouts/Layout.astro';
       const sec = Math.round((pace - min) * 60);
       document.getElementById('detail-pace')!.innerText = `${min}'${sec.toString().padStart(2, '0')}"`;
       
-      // GENERATE SPLITS (Simulasi sederhana berdasarkan avg pace)
       renderSplits(run.distance, run.duration);
     }
 
@@ -96,23 +95,30 @@ import Layout from '../../layouts/Layout.astro';
     if (!container || !list) return;
 
     container.classList.remove('hidden');
-    const totalKm = Math.ceil(distance);
+    const totalSplits = Math.ceil(distance);
+    const avgPaceSec = duration / distance;
     let html = '';
 
-    for (let i = 1; i <= totalKm; i++) {
-      // Logic: Split per KM (Saat ini simulasi flat pace, bisa dikembangkan dengan data koordinat)
-      const isLast = i === totalKm;
-      const kmDistance = isLast ? (distance % 1 || 1) : 1;
-      const avgPaceSec = (duration / distance);
-      const splitPace = avgPaceSec; // Untuk akurasi tinggi, butuh data timestamp per koordinat
+    for (let i = 1; i <= totalSplits; i++) {
+      // Hitung apakah split ini full 1km atau sisa (partial)
+      const splitDist = Math.min(1, distance - (i - 1));
+      const barWidth = (splitDist * 100).toFixed(0);
       
-      const min = Math.floor(splitPace / 60);
-      const sec = Math.round(splitPace % 60);
+      const min = Math.floor(avgPaceSec / 60);
+      const sec = Math.round(avgPaceSec % 60);
 
       html += `
-        <div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
-          <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">KM ${i}</span>
-          <span class="font-mono font-bold text-gray-800">${min}'${sec.toString().padStart(2, '0')}"</span>
+        <div class="space-y-2">
+          <div class="flex justify-between items-end">
+            <div>
+              <span class="text-[10px] font-black text-gray-800 uppercase">KM ${i}</span>
+              <p class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">${splitDist.toFixed(2)} KM</p>
+            </div>
+            <span class="font-mono font-black text-gray-800 text-sm">${min}'${sec.toString().padStart(2, '0')}"</span>
+          </div>
+          <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+            <div class="h-full bg-orange-500 rounded-full" style="width: ${barWidth}%"></div>
+          </div>
         </div>
       `;
     }
@@ -120,7 +126,7 @@ import Layout from '../../layouts/Layout.astro';
   }
 
   deleteBtn?.addEventListener('click', async () => {
-    if (confirm('Hapus?')) {
+    if (confirm('Hapus data lari ini?')) {
       await supabase.from('activities').delete().eq('id', runId);
       window.location.href = '/';
     }
@@ -128,3 +134,8 @@ import Layout from '../../layouts/Layout.astro';
 
   loadDetail();
 </script>
+
+<style>
+  :global(.leaflet-control-attribution) { display: none; }
+  .leaflet-interactive { filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.3)); }
+</style>
