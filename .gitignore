@@ -25,3 +25,10 @@ pnpm-debug.log*
 
 # Local Netlify folder
 .netlify
+
+# Cloudflare & Build sisa
+.wrangler
+dist
+.netlify
+node_modules
+.astro
