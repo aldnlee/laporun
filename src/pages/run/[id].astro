@@ -1,6 +1,8 @@
 ---
+export const prerender = false; // Memastikan halaman ini tidak dibuat statis
 import Layout from '../../layouts/Layout.astro';
 import { supabase } from '../../lib/supabase';
+
 
 const { id } = Astro.params;
 const { data: run } = await supabase.from('activities').select('*').eq('id', id).single();
