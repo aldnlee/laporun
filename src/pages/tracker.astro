@@ -14,18 +14,23 @@ import Layout from '../layouts/Layout.astro';
            </div>
            <span id="display-time" class="text-2xl font-black font-mono text-gray-800">00:00</span>
         </div>
+        
         <div class="text-center py-2">
            <p id="display-distance" class="text-8xl font-black text-orange-600 tracking-tighter">0.00</p>
            <p class="text-[10px] font-black text-gray-300 uppercase tracking-[0.3em]">Kilometers</p>
         </div>
+
         <div class="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-50">
            <div class="text-center">
              <p id="display-pace" class="text-xl font-black text-gray-800 font-mono">0'00"</p>
-             <p class="text-[10px] font-bold text-gray-400 uppercase">Pace</p>
+             <p class="text-[10px] font-bold text-gray-400 uppercase">Current Pace</p>
            </div>
            <div class="text-center">
              <p id="display-steps" class="text-xl font-black text-gray-800 font-mono">0</p>
              <p class="text-[10px] font-bold text-gray-400 uppercase">Steps</p>
+           </div>
+           <div class="col-span-2 mt-2 pt-2 text-center">
+             <p id="last-split" class="text-[10px] font-black text-orange-500 italic uppercase tracking-widest">Last KM: --'--"</p>
            </div>
         </div>
     </div>
@@ -63,24 +68,21 @@ import Layout from '../layouts/Layout.astro';
   const distanceEl = document.getElementById('display-distance')!;
   const timeEl = document.getElementById('display-time')!;
   const paceEl = document.getElementById('display-pace')!;
+  const splitEl = document.getElementById('last-split')!;
   const recenterBtn = document.getElementById('recenter-btn')!;
 
   let map: L.Map, marker: L.CircleMarker, pathLine: L.Polyline;
-  let watchId: any, startTime: any, timerInterval: any;
+  let startTime: any, timerInterval: any;
   let lastCoords: L.LatLng | null = null;
   let totalDistance = 0;
+  let lastKmMark = 0; // Untuk hitung auto-split
   let routeCoords: L.LatLngExpression[] = [];
   let isRunning = false;
   let currentUser: any = null;
 
-  // 1. Inisialisasi Auth & Map
   async function initTracker() {
     const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      window.location.href = '/login';
-      return;
-    }
+    if (!session) { window.location.href = '/login'; return; }
     currentUser = session.user;
 
     map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16);
@@ -90,27 +92,22 @@ import Layout from '../layouts/Layout.astro';
   }
 
   function startGPSWatch() {
-    if (!navigator.geolocation) {
-      alert("GPS tidak support, Den!");
-      return;
-    }
+    if (!navigator.geolocation) return alert("GPS Not Supported");
 
     navigator.geolocation.watchPosition((pos) => {
       const { latitude, longitude, accuracy } = pos.coords;
       const current = new L.LatLng(latitude, longitude);
 
+      // GPS UI Feedback
       if (accuracy < 40) {
         badge.innerText = "GPS READY";
         badge.className = "text-[10px] font-black text-green-500 uppercase tracking-widest";
         dot.className = "w-2 h-2 rounded-full bg-green-500 animate-ping";
-        
         if (!isRunning) {
           startBtn.disabled = false;
           startBtn.innerText = "Start Running";
-          startBtn.className = "w-full bg-orange-500 text-white py-5 rounded-[24px] font-black text-xl shadow-lg shadow-orange-200 active:scale-95 transition-all uppercase italic tracking-widest cursor-pointer";
+          startBtn.className = "w-full bg-orange-500 text-white py-5 rounded-[24px] font-black text-xl shadow-lg active:scale-95 transition-all uppercase italic tracking-widest cursor-pointer";
         }
-      } else {
-        badge.innerText = `Weak Signal (${Math.round(accuracy)}m)`;
       }
 
       if (!marker) {
@@ -120,32 +117,39 @@ import Layout from '../layouts/Layout.astro';
         marker.setLatLng(current);
       }
 
+      // Tracking Logic
       if (isRunning && lastCoords) {
         const d = lastCoords.distanceTo(current) / 1000;
-        // Hanya rekam rute jika akurasi bagus dan ada pergerakan
-        if (d > 0.001 && accuracy < 100) { 
+        if (d > 0.001 && accuracy < 80) { 
           totalDistance += d;
           distanceEl.innerText = totalDistance.toFixed(2);
-
           routeCoords.push([latitude, longitude]);
+
           if (pathLine) {
             pathLine.setLatLngs(routeCoords);
           } else {
             pathLine = L.polyline(routeCoords, { color: '#ff4500', weight: 8, opacity: 0.9, lineJoin: 'round' }).addTo(map);
           }
 
+          // Real-time Pace
           const durationMin = (Date.now() - startTime) / 60000;
-          const pace = durationMin / totalDistance;
-          const pMin = Math.floor(pace);
-          const pSec = Math.round((pace - pMin) * 60);
+          const currentPace = durationMin / totalDistance;
+          const pMin = Math.floor(currentPace);
+          const pSec = Math.round((currentPace - pMin) * 60);
           paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
+
+          // AUTO-SPLIT LOGIC (Tiap 1 KM)
+          if (Math.floor(totalDistance) > lastKmMark) {
+            lastKmMark = Math.floor(totalDistance);
+            splitEl.innerText = `Last KM ${lastKmMark}: ${pMin}'${pSec.toString().padStart(2, '0')}"`;
+            if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Getar 2x
+          }
         }
       }
       lastCoords = current;
     }, (err) => console.error(err), { enableHighAccuracy: true });
   }
 
-  // Event Listeners
   startBtn.addEventListener('click', () => {
     isRunning = true;
     startTime = Date.now();
@@ -164,37 +168,27 @@ import Layout from '../layouts/Layout.astro';
   });
 
   stopBtn.addEventListener('click', async () => {
-    const activityName = prompt("Kasih nama lari kamu, Den:", "Ngabuburun Sore");
-    
+    const activityName = prompt("Nama lari kamu, Den:", "Ngabuburun Sore");
     if (activityName !== null) {
       stopBtn.disabled = true;
-      stopBtn.innerText = "Saving to Cloud...";
-      
+      stopBtn.innerText = "Saving...";
       const durationSec = Math.floor((Date.now() - startTime) / 1000);
 
-      // --- UPDATE: Sekarang mengirim route_data ---
       const { error } = await supabase.from('activities').insert([{
         title: activityName,
         distance: parseFloat(totalDistance.toFixed(2)),
         duration: durationSec,
         user_id: currentUser?.id,
-        route_data: routeCoords, // <--- INI PENTING
+        route_data: routeCoords,
         created_at: new Date().toISOString()
       }]);
 
-      if (!error) {
-        window.location.href = '/';
-      } else {
-        alert("Gagal simpan: " + error.message);
-        stopBtn.disabled = false;
-        stopBtn.innerText = "Try Again";
-      }
+      if (!error) window.location.href = '/';
+      else { alert(error.message); stopBtn.disabled = false; }
     }
   });
 
-  recenterBtn.addEventListener('click', () => {
-    if (lastCoords) map.flyTo(lastCoords, 17);
-  });
+  recenterBtn.addEventListener('click', () => { if (lastCoords) map.flyTo(lastCoords, 17); });
 
   initTracker();
 </script>

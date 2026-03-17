@@ -13,7 +13,7 @@ import Layout from '../../layouts/Layout.astro';
       </div>
     </nav>
 
-    <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
+    <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-6">
       <div class="p-8 border-b border-gray-50">
         <h1 id="detail-title" class="text-4xl font-black italic text-gray-800 uppercase tracking-tighter mb-2 italic">Loading...</h1>
         <p id="detail-date" class="text-xs font-bold text-gray-400 uppercase tracking-widest"></p>
@@ -34,7 +34,13 @@ import Layout from '../../layouts/Layout.astro';
         </div>
       </div>
 
-      <div id="detail-map" class="h-80 w-full bg-gray-200 z-0 border-b border-gray-50"></div>
+      <div id="detail-map" class="h-80 w-full bg-gray-200 z-0"></div>
+    </div>
+
+    <div id="splits-container" class="bg-white rounded-[32px] p-6 shadow-sm border border-gray-100 mb-6 hidden">
+      <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4">Kilometer Splits</h2>
+      <div id="splits-list" class="space-y-2">
+        </div>
     </div>
 
     <div class="mt-8 flex gap-4">
@@ -58,108 +64,67 @@ import Layout from '../../layouts/Layout.astro';
   const deleteBtn = document.getElementById('delete-btn');
 
   async function loadDetail() {
-    const { data: run, error } = await supabase
-      .from('activities')
-      .select('*')
-      .eq('id', runId)
-      .single();
+    const { data: run, error } = await supabase.from('activities').select('*').eq('id', runId).single();
+    if (error || !run) { window.location.href = '/'; return; }
 
-    if (error || !run) {
-      window.location.href = '/';
-      return;
-    }
-
-    // 1. Update UI Elements
     document.getElementById('detail-title')!.innerText = run.title;
     document.getElementById('detail-dist')!.innerHTML = `${run.distance.toFixed(2)}<span class="text-sm ml-1 uppercase text-gray-400">km</span>`;
-    
-    // Format Duration HH:MM:SS
-    const durationStr = new Date(run.duration * 1000).toISOString().substr(11, 8);
-    document.getElementById('detail-dur')!.innerText = durationStr;
+    document.getElementById('detail-dur')!.innerText = new Date(run.duration * 1000).toISOString().substr(11, 8);
+    document.getElementById('detail-date')!.innerText = `📅 ${new Date(run.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
 
-    // Format Date
-    document.getElementById('detail-date')!.innerText = `📅 ${new Date(run.created_at).toLocaleDateString('id-ID', { 
-      weekday: 'long', 
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
-    })}`;
-
-    // Calculate Pace
     if (run.distance > 0) {
       const pace = (run.duration / 60) / run.distance;
       const min = Math.floor(pace);
       const sec = Math.round((pace - min) * 60);
       document.getElementById('detail-pace')!.innerText = `${min}'${sec.toString().padStart(2, '0')}"`;
+      
+      // GENERATE SPLITS (Simulasi sederhana berdasarkan avg pace)
+      renderSplits(run.distance, run.duration);
     }
 
-    // 2. RENDER MAP
     if (run.route_data && run.route_data.length > 0) {
       const map = L.map('detail-map', { zoomControl: false });
-      
       L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-
-      // Gambar Polyline Jalur Lari
-      const polyline = L.polyline(run.route_data, { 
-        color: '#ea580c', 
-        weight: 6, 
-        opacity: 0.9,
-        lineJoin: 'round'
-      }).addTo(map);
-
-      // Zoom otomatis ke rute
+      const polyline = L.polyline(run.route_data, { color: '#ea580c', weight: 6, opacity: 0.9, lineJoin: 'round' }).addTo(map);
       map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
-
-      // Tambahkan Marker Start & Finish
-      const startPoint = run.route_data[0];
-      const endPoint = run.route_data[run.route_data.length - 1];
-
-      L.circleMarker(startPoint, { 
-        radius: 6, 
-        fillColor: '#22c55e', 
-        color: '#fff', 
-        fillOpacity: 1, 
-        weight: 2 
-      }).addTo(map).bindPopup('Start');
-
-      L.circleMarker(endPoint, { 
-        radius: 6, 
-        fillColor: '#ef4444', 
-        color: '#fff', 
-        fillOpacity: 1, 
-        weight: 2 
-      }).addTo(map).bindPopup('Finish');
-
-    } else {
-      document.getElementById('detail-map')!.innerHTML = `
-        <div class="flex flex-col items-center justify-center h-full bg-gray-50 text-gray-400">
-          <span class="text-2xl mb-2">📍</span>
-          <p class="text-[10px] font-black uppercase tracking-widest">No GPS Route Data Available</p>
-        </div>`;
     }
   }
 
-  // Handle Delete
-  deleteBtn?.addEventListener('click', async () => {
-    if (confirm('Yakin mau hapus data lari ini, Den?')) {
-      const { error } = await supabase
-        .from('activities')
-        .delete()
-        .eq('id', runId);
+  function renderSplits(distance: number, duration: number) {
+    const container = document.getElementById('splits-container');
+    const list = document.getElementById('splits-list');
+    if (!container || !list) return;
 
-      if (!error) {
-        window.location.href = '/';
-      } else {
-        alert('Gagal menghapus: ' + error.message);
-      }
+    container.classList.remove('hidden');
+    const totalKm = Math.ceil(distance);
+    let html = '';
+
+    for (let i = 1; i <= totalKm; i++) {
+      // Logic: Split per KM (Saat ini simulasi flat pace, bisa dikembangkan dengan data koordinat)
+      const isLast = i === totalKm;
+      const kmDistance = isLast ? (distance % 1 || 1) : 1;
+      const avgPaceSec = (duration / distance);
+      const splitPace = avgPaceSec; // Untuk akurasi tinggi, butuh data timestamp per koordinat
+      
+      const min = Math.floor(splitPace / 60);
+      const sec = Math.round(splitPace % 60);
+
+      html += `
+        <div class="flex justify-between items-center py-2 border-b border-gray-50 last:border-0">
+          <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">KM ${i}</span>
+          <span class="font-mono font-bold text-gray-800">${min}'${sec.toString().padStart(2, '0')}"</span>
+        </div>
+      `;
+    }
+    list.innerHTML = html;
+  }
+
+  deleteBtn?.addEventListener('click', async () => {
+    if (confirm('Hapus?')) {
+      await supabase.from('activities').delete().eq('id', runId);
+      window.location.href = '/';
     }
   });
 
-  // Start Loading
   loadDetail();
 </script>
-
-<style>
-  :global(.leaflet-control-attribution) { display: none; }
-  .leaflet-interactive { filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.3)); }
-</style>
