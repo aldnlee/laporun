@@ -1,88 +1,40 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import { supabase } from '../../lib/supabase';
-
-const { id } = Astro.params;
-
-// Ambil data lari dari Supabase
-const { data: run, error } = await supabase
-  .from('activities')
-  .select('*')
-  .eq('id', id)
-  .single();
-
-if (error || !run) {
-  return Astro.redirect('/404');
-}
-
-// Helper Format Waktu (detik ke HH:MM:SS)
-const formatDuration = (seconds: number) => {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  return [h, m, s].map(v => v.toString().padStart(2, '0')).join(':');
-};
-
-// Helper Format Pace (menit/km)
-const formatPace = (duration: number, distance: number) => {
-  if (!distance) return "0'00\"";
-  const pace = (duration / 60) / distance;
-  const min = Math.floor(pace);
-  const sec = Math.round((pace - min) * 60);
-  return `${min}'${sec.toString().padStart(2, '0')}"`;
-};
 ---
 
-<Layout title={`${run.title} - Ngabuburun`}>
+<Layout title="Activity Detail - Ngabuburun">
   <main class="p-6 max-w-3xl mx-auto font-sans bg-gray-50 min-h-screen">
     <nav class="flex justify-between items-center mb-8">
       <a href="/" class="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-orange-600 transition-colors">
         ← Back to Dashboard
       </a>
-      <div class="bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-[10px] font-black uppercase">
+      <div class="bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
         Activity Detail
       </div>
     </nav>
 
     <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden">
       <div class="p-8 border-b border-gray-50">
-        <h1 class="text-4xl font-black italic text-gray-800 uppercase tracking-tighter mb-2">
-          {run.title}
-        </h1>
-        <p class="text-xs font-bold text-gray-400 uppercase tracking-widest">
-          📅 {new Date(run.created_at).toLocaleDateString('id-ID', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}
-        </p>
+        <h1 id="detail-title" class="text-4xl font-black italic text-gray-800 uppercase tracking-tighter mb-2 italic">Loading...</h1>
+        <p id="detail-date" class="text-xs font-bold text-gray-400 uppercase tracking-widest"></p>
       </div>
 
       <div class="grid grid-cols-2 md:grid-cols-3 gap-px bg-gray-100">
         <div class="bg-white p-8">
           <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Distance</p>
-          <p class="text-4xl font-black text-gray-800 italic">{run.distance.toFixed(2)}<span class="text-sm ml-1 uppercase text-gray-400">km</span></p>
+          <p id="detail-dist" class="text-4xl font-black text-gray-800 italic">0.00<span class="text-sm ml-1 uppercase text-gray-400">km</span></p>
         </div>
         <div class="bg-white p-8">
           <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Duration</p>
-          <p class="text-4xl font-black text-gray-800 italic">{formatDuration(run.duration)}</p>
+          <p id="detail-dur" class="text-4xl font-black text-gray-800 italic">00:00:00</p>
         </div>
         <div class="bg-white p-8 col-span-2 md:col-span-1 border-t md:border-t-0">
           <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Avg. Pace</p>
-          <p class="text-4xl font-black text-orange-600 italic">{formatPace(run.duration, run.distance)}</p>
+          <p id="detail-pace" class="text-4xl font-black text-orange-600 italic">0'00"</p>
         </div>
       </div>
 
-      <div class="bg-gray-200 h-64 flex flex-col items-center justify-center relative group">
-        <div class="absolute inset-0 bg-cover bg-center opacity-40" style="background-image: url('https://www.google.com/maps/d/u/0/thumbnail?mid=1_KkG8z_K_3H9O9G0U5v_Q_8_7g')"></div>
-        <div class="relative z-10 text-center">
-            <span class="text-3xl mb-2 block">📍</span>
-            <p class="text-[10px] font-black text-gray-600 uppercase tracking-widest bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full border border-gray-200">
-                Route Map (Coming Soon)
-            </p>
-        </div>
-      </div>
+      <div id="detail-map" class="h-80 w-full bg-gray-200 z-0 border-b border-gray-50"></div>
     </div>
 
     <div class="mt-8 flex gap-4">
@@ -97,11 +49,97 @@ const formatPace = (duration: number, distance: number) => {
 </Layout>
 
 <script>
+  // @ts-ignore
+  import L from 'leaflet';
+  import 'leaflet/dist/leaflet.css';
   import { supabase } from '../../lib/supabase';
-  
-  const deleteBtn = document.getElementById('delete-btn');
-  const runId = window.location.pathname.split('/').pop();
 
+  const runId = window.location.pathname.split('/').pop();
+  const deleteBtn = document.getElementById('delete-btn');
+
+  async function loadDetail() {
+    const { data: run, error } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('id', runId)
+      .single();
+
+    if (error || !run) {
+      window.location.href = '/';
+      return;
+    }
+
+    // 1. Update UI Elements
+    document.getElementById('detail-title')!.innerText = run.title;
+    document.getElementById('detail-dist')!.innerHTML = `${run.distance.toFixed(2)}<span class="text-sm ml-1 uppercase text-gray-400">km</span>`;
+    
+    // Format Duration HH:MM:SS
+    const durationStr = new Date(run.duration * 1000).toISOString().substr(11, 8);
+    document.getElementById('detail-dur')!.innerText = durationStr;
+
+    // Format Date
+    document.getElementById('detail-date')!.innerText = `📅 ${new Date(run.created_at).toLocaleDateString('id-ID', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    })}`;
+
+    // Calculate Pace
+    if (run.distance > 0) {
+      const pace = (run.duration / 60) / run.distance;
+      const min = Math.floor(pace);
+      const sec = Math.round((pace - min) * 60);
+      document.getElementById('detail-pace')!.innerText = `${min}'${sec.toString().padStart(2, '0')}"`;
+    }
+
+    // 2. RENDER MAP
+    if (run.route_data && run.route_data.length > 0) {
+      const map = L.map('detail-map', { zoomControl: false });
+      
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+
+      // Gambar Polyline Jalur Lari
+      const polyline = L.polyline(run.route_data, { 
+        color: '#ea580c', 
+        weight: 6, 
+        opacity: 0.9,
+        lineJoin: 'round'
+      }).addTo(map);
+
+      // Zoom otomatis ke rute
+      map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+
+      // Tambahkan Marker Start & Finish
+      const startPoint = run.route_data[0];
+      const endPoint = run.route_data[run.route_data.length - 1];
+
+      L.circleMarker(startPoint, { 
+        radius: 6, 
+        fillColor: '#22c55e', 
+        color: '#fff', 
+        fillOpacity: 1, 
+        weight: 2 
+      }).addTo(map).bindPopup('Start');
+
+      L.circleMarker(endPoint, { 
+        radius: 6, 
+        fillColor: '#ef4444', 
+        color: '#fff', 
+        fillOpacity: 1, 
+        weight: 2 
+      }).addTo(map).bindPopup('Finish');
+
+    } else {
+      document.getElementById('detail-map')!.innerHTML = `
+        <div class="flex flex-col items-center justify-center h-full bg-gray-50 text-gray-400">
+          <span class="text-2xl mb-2">📍</span>
+          <p class="text-[10px] font-black uppercase tracking-widest">No GPS Route Data Available</p>
+        </div>`;
+    }
+  }
+
+  // Handle Delete
   deleteBtn?.addEventListener('click', async () => {
     if (confirm('Yakin mau hapus data lari ini, Den?')) {
       const { error } = await supabase
@@ -116,4 +154,12 @@ const formatPace = (duration: number, distance: number) => {
       }
     }
   });
+
+  // Start Loading
+  loadDetail();
 </script>
+
+<style>
+  :global(.leaflet-control-attribution) { display: none; }
+  .leaflet-interactive { filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.3)); }
+</style>

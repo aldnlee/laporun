@@ -73,7 +73,7 @@ import Layout from '../layouts/Layout.astro';
   let isRunning = false;
   let currentUser: any = null;
 
-  // 1. Inisialisasi Auth & Tracker
+  // 1. Inisialisasi Auth & Map
   async function initTracker() {
     const { data: { session } } = await supabase.auth.getSession();
     
@@ -83,17 +83,15 @@ import Layout from '../layouts/Layout.astro';
     }
     currentUser = session.user;
 
-    // Inisialisasi Map
     map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
-    // Mulai GPS Watch
     startGPSWatch();
   }
 
   function startGPSWatch() {
     if (!navigator.geolocation) {
-      alert("Browser kamu gak support GPS, Den!");
+      alert("GPS tidak support, Den!");
       return;
     }
 
@@ -101,7 +99,6 @@ import Layout from '../layouts/Layout.astro';
       const { latitude, longitude, accuracy } = pos.coords;
       const current = new L.LatLng(latitude, longitude);
 
-      // GPS Lock UI
       if (accuracy < 40) {
         badge.innerText = "GPS READY";
         badge.className = "text-[10px] font-black text-green-500 uppercase tracking-widest";
@@ -116,7 +113,6 @@ import Layout from '../layouts/Layout.astro';
         badge.innerText = `Weak Signal (${Math.round(accuracy)}m)`;
       }
 
-      // Update Marker Posisi
       if (!marker) {
         marker = L.circleMarker(current, { radius: 10, fillColor: '#3b82f6', color: '#fff', fillOpacity: 1, weight: 4 }).addTo(map);
         map.flyTo(current, 17);
@@ -124,9 +120,9 @@ import Layout from '../layouts/Layout.astro';
         marker.setLatLng(current);
       }
 
-      // Tracking Logic saat lari
       if (isRunning && lastCoords) {
         const d = lastCoords.distanceTo(current) / 1000;
+        // Hanya rekam rute jika akurasi bagus dan ada pergerakan
         if (d > 0.002 && accuracy < 50) { 
           totalDistance += d;
           distanceEl.innerText = totalDistance.toFixed(2);
@@ -176,11 +172,13 @@ import Layout from '../layouts/Layout.astro';
       
       const durationSec = Math.floor((Date.now() - startTime) / 1000);
 
+      // --- UPDATE: Sekarang mengirim route_data ---
       const { error } = await supabase.from('activities').insert([{
         title: activityName,
         distance: parseFloat(totalDistance.toFixed(2)),
         duration: durationSec,
         user_id: currentUser?.id,
+        route_data: routeCoords, // <--- INI PENTING
         created_at: new Date().toISOString()
       }]);
 
@@ -198,7 +196,6 @@ import Layout from '../layouts/Layout.astro';
     if (lastCoords) map.flyTo(lastCoords, 17);
   });
 
-  // Jalankan inisialisasi
   initTracker();
 </script>
 

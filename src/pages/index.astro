@@ -117,7 +117,7 @@ import Layout from '../layouts/Layout.astro';
           </div>`;
       } else {
         activitiesList!.innerHTML = activities.map(run => `
-          <a href="/activity/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
+          <a href="/run/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
             <div class="flex justify-between items-center">
               <div>
                 <h3 class="font-black text-gray-800 text-xl italic uppercase group-hover:text-orange-600 transition-colors leading-none">${run.title}</h3>
@@ -151,11 +151,10 @@ import Layout from '../layouts/Layout.astro';
         const track = gpx.tracks[0];
         if (!track) throw new Error("File GPX tidak valid atau tidak ada track.");
 
-        // Hitung manual jika status.duration tidak ada
+        // AMBIL SEMUA KOORDINAT UNTUK PETA DETAIL
+        const points = track.points.map(p => [p.lat, p.lon]);
+
         const distanceKm = track.distance.total / 1000;
-        
-        // Estimasi durasi sederhana jika data waktu tidak lengkap (bisa diimprove)
-        // Kita coba ambil selisih waktu titik pertama dan terakhir
         const startTime = track.points[0].time;
         const endTime = track.points[track.points.length - 1].time;
         let durationSec = 0;
@@ -173,6 +172,7 @@ import Layout from '../layouts/Layout.astro';
           distance: parseFloat(distanceKm.toFixed(2)),
           duration: durationSec,
           user_id: session?.user.id,
+          route_data: points, // <--- UPDATE: Sekarang simpan rute juga
           created_at: startTime || new Date().toISOString()
         }]);
 
