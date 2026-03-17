@@ -1,11 +1,9 @@
 import { defineConfig } from 'astro/config';
+import netlify from '@astrojs/netlify';
 import tailwind from '@astrojs/tailwind';
 
-import netlify from '@astrojs/netlify';
-
 export default defineConfig({
-  // output: 'static' adalah default, jadi tidak perlu ditulis
-  integrations: [tailwind()],
-
+  output: 'server', // WAJIB ADA untuk SSR
   adapter: netlify(),
+  integrations: [tailwind()],
 });
