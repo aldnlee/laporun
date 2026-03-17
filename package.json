@@ -12,15 +12,16 @@
     "@astrojs/cloudflare": "^13.1.2",
     "@astrojs/netlify": "^7.0.3",
     "@astrojs/node": "^10.0.2",
-    "@astrojs/tailwind": "^6.0.2",
     "@cloudflare/vite-plugin": "^1.29.0",
     "@supabase/supabase-js": "^2.99.2",
+    "@tailwindcss/postcss": "^4.2.1",
     "@tailwindcss/vite": "^4.2.1",
     "@vite-pwa/astro": "^1.2.0",
     "astro": "^6.0.5",
     "gpxparser": "^3.0.8",
     "idb": "^8.0.3",
     "leaflet": "^1.9.4",
+    "postcss": "^8.5.8",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
