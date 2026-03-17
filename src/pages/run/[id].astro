@@ -1,55 +1,90 @@
 ---
+export const prerender = false; // TAMBAHKAN INI UNTUK AKTIFKAN SSR
 import Layout from '../../layouts/Layout.astro';
 ---
 
 <Layout title="Activity Detail - Ngabuburun">
-  <main class="p-6 max-w-3xl mx-auto font-sans bg-gray-50 min-h-screen">
-    <nav class="flex justify-between items-center mb-8">
-      <a href="/" class="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-orange-600 transition-colors">
-        ← Back to Dashboard
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" is:inline></script>
+
+  <main class="max-w-[1440px] mx-auto font-sans bg-gray-50 min-h-screen flex flex-col lg:h-screen lg:overflow-hidden">
+    
+    <nav class="flex justify-between items-center px-6 py-4 bg-white border-b border-gray-100 z-10">
+      <a href="/" class="text-[10px] font-black text-gray-400 uppercase tracking-widest hover:text-orange-600 transition-colors flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back to Dashboard
       </a>
       <div class="bg-orange-100 text-orange-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-        Activity Detail
+        Activity Analysis
       </div>
     </nav>
 
-    <div class="bg-white rounded-[40px] shadow-sm border border-gray-100 overflow-hidden mb-6">
-      <div class="p-8 border-b border-gray-50">
-        <h1 id="detail-title" class="text-4xl font-black italic text-gray-800 uppercase tracking-tighter mb-2 italic">Loading...</h1>
-        <p id="detail-date" class="text-xs font-bold text-gray-400 uppercase tracking-widest"></p>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-3 gap-px bg-gray-100">
-        <div class="bg-white p-8">
-          <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Distance</p>
-          <p id="detail-dist" class="text-4xl font-black text-gray-800 italic">0.00<span class="text-sm ml-1 uppercase text-gray-400">km</span></p>
+    <div class="flex flex-col lg:flex-row flex-grow lg:overflow-hidden">
+      
+      <section class="w-full lg:w-3/5 xl:w-2/3 h-[40vh] lg:h-full relative border-r border-gray-100">
+        <div id="detail-map" class="h-full w-full z-0"></div>
+        <div id="map-error" class="hidden absolute inset-0 flex items-center justify-center bg-gray-100 text-[10px] font-black text-gray-400 uppercase">GPS Map Unavailable</div>
+        
+        <div class="absolute bottom-6 left-6 z-[1000] bg-white/90 backdrop-blur p-4 rounded-3xl shadow-xl border border-white hidden lg:flex flex-col gap-3">
+          <p class="text-[8px] font-black uppercase text-gray-400 tracking-widest mb-1">Intensity</p>
+          <div class="flex items-center gap-3"><div class="w-2.5 h-2.5 rounded-full bg-green-500"></div> <span class="text-[10px] font-bold text-gray-700 uppercase">Fast Pace</span></div>
+          <div class="flex items-center gap-3"><div class="w-2.5 h-2.5 rounded-full bg-yellow-400"></div> <span class="text-[10px] font-bold text-gray-700 uppercase">Moderate</span></div>
+          <div class="flex items-center gap-3"><div class="w-2.5 h-2.5 rounded-full bg-red-500"></div> <span class="text-[10px] font-bold text-gray-700 uppercase">Slow Pace</span></div>
         </div>
-        <div class="bg-white p-8">
-          <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Duration</p>
-          <p id="detail-dur" class="text-4xl font-black text-gray-800 italic">00:00:00</p>
-        </div>
-        <div class="bg-white p-8 col-span-2 md:col-span-1 border-t md:border-t-0">
-          <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Avg. Pace</p>
-          <p id="detail-pace" class="text-4xl font-black text-orange-600 italic">0'00"</p>
-        </div>
-      </div>
+      </section>
 
-      <div id="detail-map" class="h-80 w-full bg-gray-200 z-0 border-b border-gray-50"></div>
-    </div>
-
-    <div id="splits-container" class="bg-white rounded-[32px] p-8 shadow-sm border border-gray-100 mb-6 hidden">
-      <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Kilometer Splits</h2>
-      <div id="splits-list" class="space-y-6">
+      <section class="w-full lg:w-2/5 xl:w-1/3 flex flex-col bg-white lg:overflow-y-auto custom-scrollbar">
+        
+        <div class="p-8 border-b border-gray-50">
+          <h1 id="detail-title" class="text-4xl font-black italic text-gray-800 uppercase tracking-tighter mb-2 leading-none italic">Loading...</h1>
+          <p id="detail-date" class="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]"></p>
         </div>
-    </div>
 
-    <div class="mt-8 flex gap-4">
-      <button id="delete-btn" class="flex-1 bg-white border-2 border-red-50 text-red-400 py-4 rounded-3xl text-xs font-black uppercase tracking-widest hover:bg-red-50 transition-all">
-        Delete Run
-      </button>
-      <button class="flex-1 bg-gray-800 text-white py-4 rounded-3xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition-all">
-        Share Stats
-      </button>
+        <div class="grid grid-cols-3 gap-px bg-gray-50 border-b border-gray-50 text-center">
+          <div class="bg-white p-6">
+            <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Distance</p>
+            <p id="detail-dist" class="text-2xl font-black text-gray-800 italic">0.00</p>
+          </div>
+          <div class="bg-white p-6 border-x border-gray-50">
+            <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Time</p>
+            <p id="detail-dur" class="text-2xl font-black text-gray-800 italic">00:00</p>
+          </div>
+          <div class="bg-white p-6">
+            <p class="text-[9px] font-black text-gray-400 uppercase tracking-widest mb-2">Avg Pace</p>
+            <p id="detail-pace" class="text-2xl font-black text-orange-600 italic">0'00"</p>
+          </div>
+        </div>
+
+        <div class="p-8 border-b border-gray-50 bg-gray-50/30">
+          <div class="flex justify-between items-center mb-6">
+            <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Pace Analysis</h2>
+            <div id="chart-tooltip-data" class="text-[9px] font-bold text-orange-600 uppercase italic">Hover Chart</div>
+          </div>
+          <div class="h-44 w-full">
+            <canvas id="paceChart"></canvas>
+          </div>
+        </div>
+
+        <div class="p-8">
+          <div id="splits-container" class="hidden">
+            <div class="flex justify-between items-center mb-6">
+              <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Kilometer Splits</h2>
+              <span class="text-[8px] font-bold text-orange-400 uppercase animate-pulse">Interactive</span>
+            </div>
+            <div id="splits-list" class="space-y-3"></div>
+          </div>
+        </div>
+
+        <div class="mt-auto p-8 border-t border-gray-100 bg-white sticky bottom-0 z-10 flex gap-4">
+          <button id="delete-btn" class="flex-1 bg-white border-2 border-red-50 text-red-400 py-4 rounded-3xl text-xs font-black uppercase tracking-widest hover:bg-red-50 transition-all">
+            Delete
+          </button>
+          <button id="share-btn" class="flex-1 bg-gray-800 text-white py-4 rounded-3xl text-xs font-black uppercase tracking-widest hover:bg-gray-900 transition-all shadow-lg">
+            Share
+          </button>
+        </div>
+      </section>
     </div>
   </main>
 </Layout>
@@ -62,73 +97,211 @@ import Layout from '../../layouts/Layout.astro';
 
   const runId = window.location.pathname.split('/').pop();
   const deleteBtn = document.getElementById('delete-btn');
+  let map: L.Map;
+  let mapSegments: { [key: number]: L.Polyline } = {};
+  let segmentColors: { [key: number]: string } = {};
 
   async function loadDetail() {
-    const { data: run, error } = await supabase.from('activities').select('*').eq('id', runId).single();
+    if (!runId) return;
+    const { data: run, error } = await supabase.from('activities').select('*').eq('id', runId).maybeSingle();
+    
     if (error || !run) { window.location.href = '/'; return; }
 
-    document.getElementById('detail-title')!.innerText = run.title;
-    document.getElementById('detail-dist')!.innerHTML = `${run.distance.toFixed(2)}<span class="text-sm ml-1 uppercase text-gray-400">km</span>`;
-    document.getElementById('detail-dur')!.innerText = new Date(run.duration * 1000).toISOString().substr(11, 8);
-    document.getElementById('detail-date')!.innerText = `📅 ${new Date(run.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+    const titleEl = document.getElementById('detail-title');
+    const distEl = document.getElementById('detail-dist');
+    const durEl = document.getElementById('detail-dur');
+    const dateEl = document.getElementById('detail-date');
+    const paceEl = document.getElementById('detail-pace');
 
-    if (run.distance > 0) {
-      const pace = (run.duration / 60) / run.distance;
-      const min = Math.floor(pace);
-      const sec = Math.round((pace - min) * 60);
-      document.getElementById('detail-pace')!.innerText = `${min}'${sec.toString().padStart(2, '0')}"`;
-      
-      renderSplits(run.distance, run.duration);
+    if (titleEl) titleEl.innerText = run.title || "Untitled Run";
+    if (distEl) distEl.innerHTML = `${(run.distance || 0).toFixed(2)}<span class="text-sm ml-0.5 text-gray-300 not-italic uppercase">km</span>`;
+    if (durEl) durEl.innerText = new Date((run.duration || 0) * 1000).toISOString().substr(11, 8);
+    if (dateEl) dateEl.innerText = `📅 ${new Date(run.created_at).toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`;
+
+    const avgPaceSec = (run.duration || 0) / (run.distance || 0.001);
+    if (paceEl) {
+      const min = Math.floor(avgPaceSec / 60);
+      const sec = Math.round(avgPaceSec % 60);
+      paceEl.innerText = `${min}'${sec.toString().padStart(2, '0')}"`;
     }
 
-    if (run.route_data && run.route_data.length > 0) {
-      const map = L.map('detail-map', { zoomControl: false });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
-      const polyline = L.polyline(run.route_data, { color: '#ea580c', weight: 6, opacity: 0.9, lineJoin: 'round' }).addTo(map);
-      map.fitBounds(polyline.getBounds(), { padding: [40, 40] });
+    if (Array.isArray(run.route_data) && run.route_data.length > 0) {
+      try {
+        map = L.map('detail-map', { zoomControl: false });
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
+        
+        renderInteractiveSegments(map, run.route_data, avgPaceSec);
+        renderSmoothedPaceChart(run.route_data);
+        renderRealSplits(run.route_data, run.distance, run.duration);
+      } catch (e) {
+        document.getElementById('map-error')?.classList.remove('hidden');
+      }
     }
   }
 
-  function renderSplits(distance: number, duration: number) {
-    const container = document.getElementById('splits-container');
+  function renderInteractiveSegments(map: L.Map, route: any[], avgPaceSec: number) {
+    const totalKm = Math.ceil(route[route.length - 1].dist || 0);
+    const boundsPoints: L.LatLngExpression[] = [];
+
+    for (let i = 1; i <= totalKm; i++) {
+      const segmentData = route.filter(p => (p.dist || 0) > (i - 1) && (p.dist || 0) <= i);
+      const prevPoint = route.findLast(p => (p.dist || 0) <= (i - 1));
+      const finalSegment = prevPoint ? [prevPoint, ...segmentData] : segmentData;
+
+      if (finalSegment.length > 1) {
+        const timeDiff = finalSegment[finalSegment.length-1].time - finalSegment[0].time;
+        const distDiff = finalSegment[finalSegment.length-1].dist - finalSegment[0].dist;
+        const segPace = timeDiff / (distDiff || 0.001);
+        
+        let color = '#eab308';
+        if (segPace < avgPaceSec * 0.95) color = '#22c55e';
+        else if (segPace > avgPaceSec * 1.05) color = '#ef4444';
+
+        const poly = L.polyline(finalSegment.map(p => [p.lat, p.lng ?? p.lon]), {
+          color, weight: 6, opacity: 0.9, lineCap: 'round'
+        }).addTo(map);
+
+        mapSegments[i] = poly;
+        segmentColors[i] = color;
+        finalSegment.forEach(p => boundsPoints.push([p.lat, p.lng ?? p.lon]));
+
+        const lastPt = finalSegment[finalSegment.length - 1];
+        L.marker([lastPt.lat, lastPt.lng ?? lastPt.lon], {
+          icon: L.divIcon({ className: 'km-marker', html: `<span>${i}</span>`, iconSize: [18, 18] })
+        }).addTo(map);
+      }
+    }
+    if (boundsPoints.length > 0) map.fitBounds(L.latLngBounds(boundsPoints), { padding: [50, 50] });
+  }
+
+  function renderSmoothedPaceChart(route: any[]) {
+    const ctx = (document.getElementById('paceChart') as HTMLCanvasElement).getContext('2d');
+    if (!ctx) return;
+
+    const rawPaceData: number[] = [];
+    const distanceLabels: string[] = [];
+
+    for (let i = 1; i < route.length; i++) {
+      const p1 = route[i - 1];
+      const p2 = route[i];
+      const distDiff = p2.dist - p1.dist;
+      const timeDiff = p2.time - p1.time;
+
+      if (distDiff > 0.002) {
+        const instantPace = (timeDiff / distDiff) / 60;
+        if (instantPace < 15 && instantPace > 2) {
+          rawPaceData.push(instantPace);
+          distanceLabels.push(p2.dist.toFixed(2));
+        }
+      }
+    }
+
+    // Moving Average Smoothing (Strava-style window)
+    const windowSize = 15; 
+    const smoothedPaceData = rawPaceData.map((_, idx, arr) => {
+      const start = Math.max(0, idx - Math.floor(windowSize / 2));
+      const end = Math.min(arr.length, idx + Math.floor(windowSize / 2));
+      const subset = arr.slice(start, end);
+      return subset.reduce((a, b) => a + b, 0) / subset.length;
+    });
+
+    // @ts-ignore
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: distanceLabels,
+        datasets: [{
+          data: smoothedPaceData,
+          borderColor: '#ea580c',
+          backgroundColor: 'rgba(234, 88, 12, 0.1)',
+          borderWidth: 2,
+          fill: true,
+          tension: 0.6,
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { display: true, ticks: { maxTicksLimit: 8, font: { size: 8 } }, grid: { display: false } },
+          y: { reverse: true, min: 3, max: 12, ticks: { stepSize: 1, font: { size: 8 } }, grid: { color: '#f3f4f6' } }
+        },
+        interaction: { intersect: false, mode: 'index' },
+        onHover: (e: any, activeElements: any) => {
+          if (activeElements.length > 0) {
+            const idx = activeElements[0].index;
+            const pace = smoothedPaceData[idx];
+            const m = Math.floor(pace);
+            const s = Math.round((pace - m) * 60);
+            document.getElementById('chart-tooltip-data')!.innerText = `Dist: ${distanceLabels[idx]} km | Pace: ${m}'${s.toString().padStart(2, '0')}"`;
+          }
+        }
+      }
+    });
+  }
+
+  function renderRealSplits(route: any[], totalDist: number, totalDur: number) {
     const list = document.getElementById('splits-list');
-    if (!container || !list) return;
-
-    container.classList.remove('hidden');
-    const totalSplits = Math.ceil(distance);
-    const avgPaceSec = duration / distance;
+    if (!list) return;
+    document.getElementById('splits-container')?.classList.remove('hidden');
+    
     let html = '';
+    let lastTime = 0;
 
-    for (let i = 1; i <= totalSplits; i++) {
-      // Hitung apakah split ini full 1km atau sisa (partial)
-      const splitDist = Math.min(1, distance - (i - 1));
-      const barWidth = (splitDist * 100).toFixed(0);
-      
-      const min = Math.floor(avgPaceSec / 60);
-      const sec = Math.round(avgPaceSec % 60);
+    for (let i = 1; i <= Math.ceil(totalDist || 0); i++) {
+      const splitDist = Math.min(1, totalDist - (i - 1));
+      const pointAtKm = route.find(p => (p.dist || 0) >= i);
+      const splitPaceSec = pointAtKm ? (pointAtKm.time - lastTime) : (totalDur - lastTime) / splitDist;
+      if (pointAtKm) lastTime = pointAtKm.time;
+
+      const m = Math.floor(splitPaceSec / 60);
+      const s = Math.round(splitPaceSec % 60);
 
       html += `
-        <div class="space-y-2">
-          <div class="flex justify-between items-end">
-            <div>
-              <span class="text-[10px] font-black text-gray-800 uppercase">KM ${i}</span>
-              <p class="text-[9px] font-bold text-gray-400 uppercase tracking-tighter">${splitDist.toFixed(2)} KM</p>
+        <div class="split-row p-4 rounded-3xl bg-gray-50 hover:bg-orange-600 transition-all cursor-pointer group" data-km="${i}">
+          <div class="flex justify-between items-center">
+            <div class="flex items-center gap-4">
+              <span class="text-[10px] font-black text-gray-400 group-hover:text-white/70 uppercase tracking-widest">KM ${i}</span>
+              <span class="font-mono font-black text-gray-800 group-hover:text-white text-base">${m}'${s.toString().padStart(2, '0')}"</span>
             </div>
-            <span class="font-mono font-black text-gray-800 text-sm">${min}'${sec.toString().padStart(2, '0')}"</span>
+            <span class="text-[9px] font-black text-gray-300 group-hover:text-white/50 uppercase">${splitDist.toFixed(2)} KM</span>
           </div>
-          <div class="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div class="h-full bg-orange-500 rounded-full" style="width: ${barWidth}%"></div>
-          </div>
-        </div>
-      `;
+        </div>`;
     }
     list.innerHTML = html;
+
+    document.querySelectorAll('.split-row').forEach(row => {
+      row.addEventListener('mouseenter', () => highlightSegment(parseInt(row.getAttribute('data-km') || '0')));
+      row.addEventListener('mouseleave', () => resetSegments());
+    });
+  }
+
+  function highlightSegment(km: number) {
+    Object.keys(mapSegments).forEach(key => {
+      const k = parseInt(key);
+      if (k === km) {
+        mapSegments[k].setStyle({ color: '#2563eb', weight: 12, opacity: 1 });
+        mapSegments[k].bringToFront();
+        map.flyTo(mapSegments[k].getBounds().getCenter(), Math.max(map.getZoom(), 16), { duration: 0.5 });
+      } else {
+        mapSegments[k].setStyle({ opacity: 0.1 });
+      }
+    });
+  }
+
+  function resetSegments() {
+    Object.keys(mapSegments).forEach(key => {
+      const k = parseInt(key);
+      mapSegments[k].setStyle({ color: segmentColors[k], weight: 6, opacity: 0.9 });
+    });
   }
 
   deleteBtn?.addEventListener('click', async () => {
-    if (confirm('Hapus data lari ini?')) {
-      await supabase.from('activities').delete().eq('id', runId);
-      window.location.href = '/';
+    if (confirm('Hapus selamanya, Den?')) {
+      const { error } = await supabase.from('activities').delete().eq('id', runId);
+      if (!error) window.location.href = '/';
     }
   });
 
@@ -137,5 +310,19 @@ import Layout from '../../layouts/Layout.astro';
 
 <style>
   :global(.leaflet-control-attribution) { display: none; }
-  .leaflet-interactive { filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.3)); }
+  :global(.km-marker) {
+    background: #fff;
+    border: 2px solid #ea580c;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 8px;
+    font-weight: 900;
+    color: #ea580c;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
+  .split-row:hover { transform: scale(1.02); }
 </style>

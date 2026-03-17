@@ -1,6 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-// Frontmatter bersih dari proteksi server-side agar tidak bentrok dengan Netlify SSR
 ---
 
 <Layout title="Tracker - Ngabuburun">
@@ -25,12 +24,12 @@ import Layout from '../layouts/Layout.astro';
              <p id="display-pace" class="text-xl font-black text-gray-800 font-mono">0'00"</p>
              <p class="text-[10px] font-bold text-gray-400 uppercase">Current Pace</p>
            </div>
-           <div class="text-center">
-             <p id="display-steps" class="text-xl font-black text-gray-800 font-mono">0</p>
-             <p class="text-[10px] font-bold text-gray-400 uppercase">Steps</p>
-           </div>
-           <div class="col-span-2 mt-2 pt-2 text-center">
-             <p id="last-split" class="text-[10px] font-black text-orange-500 italic uppercase tracking-widest">Last KM: --'--"</p>
+           <div class="text-center flex flex-col items-center justify-center">
+             <div id="offline-indicator" class="hidden flex items-center gap-1 text-[8px] font-black text-orange-500 bg-orange-50 px-2 py-1 rounded-full uppercase">
+                Offline Mode
+             </div>
+             <p id="display-steps" class="text-xl font-black text-gray-800 font-mono mt-1">Ready</p>
+             <p class="text-[10px] font-bold text-gray-400 uppercase">Status</p>
            </div>
         </div>
     </div>
@@ -60,6 +59,7 @@ import Layout from '../layouts/Layout.astro';
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { supabase } from '../lib/supabase';
+  import { saveRunLocally } from '../lib/db'; // Asumsi kamu sudah buat Step 3
 
   const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
@@ -68,15 +68,14 @@ import Layout from '../layouts/Layout.astro';
   const distanceEl = document.getElementById('display-distance')!;
   const timeEl = document.getElementById('display-time')!;
   const paceEl = document.getElementById('display-pace')!;
-  const splitEl = document.getElementById('last-split')!;
   const recenterBtn = document.getElementById('recenter-btn')!;
+  const offlineBadge = document.getElementById('offline-indicator')!;
 
   let map: L.Map, marker: L.CircleMarker, pathLine: L.Polyline;
-  let startTime: any, timerInterval: any;
+  let startTime: number, timerInterval: any;
   let lastCoords: L.LatLng | null = null;
   let totalDistance = 0;
-  let lastKmMark = 0; // Untuk hitung auto-split
-  let routeCoords: L.LatLngExpression[] = [];
+  let routeCoords: any[] = [];
   let isRunning = false;
   let currentUser: any = null;
 
@@ -88,6 +87,11 @@ import Layout from '../layouts/Layout.astro';
     map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png').addTo(map);
 
+    // Monitor koneksi secara real-time
+    window.addEventListener('online', () => offlineBadge.classList.add('hidden'));
+    window.addEventListener('offline', () => offlineBadge.classList.remove('hidden'));
+    if (!navigator.onLine) offlineBadge.classList.remove('hidden');
+
     startGPSWatch();
   }
 
@@ -98,8 +102,8 @@ import Layout from '../layouts/Layout.astro';
       const { latitude, longitude, accuracy } = pos.coords;
       const current = new L.LatLng(latitude, longitude);
 
-      // GPS UI Feedback
-      if (accuracy < 40) {
+      // Filter GPS Jitter
+      if (accuracy < 50) {
         badge.innerText = "GPS READY";
         badge.className = "text-[10px] font-black text-green-500 uppercase tracking-widest";
         dot.className = "w-2 h-2 rounded-full bg-green-500 animate-ping";
@@ -117,37 +121,43 @@ import Layout from '../layouts/Layout.astro';
         marker.setLatLng(current);
       }
 
-      // Tracking Logic
       if (isRunning && lastCoords) {
         const d = lastCoords.distanceTo(current) / 1000;
-        if (d > 0.001 && accuracy < 80) { 
+        // Hanya rekam jika berpindah lebih dari 2 meter untuk akurasi heatmap
+        if (d > 0.002 && accuracy < 60) { 
           totalDistance += d;
-          distanceEl.innerText = totalDistance.toFixed(2);
-          routeCoords.push([latitude, longitude]);
+          const elapsedSec = Math.floor((Date.now() - startTime) / 1000);
 
+          routeCoords.push({
+            lat: latitude,
+            lng: longitude,
+            time: elapsedSec,
+            dist: totalDistance
+          });
+
+          distanceEl.innerText = totalDistance.toFixed(2);
+
+          // Update jalur lari di peta
+          const pathPoints = routeCoords.map(p => [p.lat, p.lng]);
           if (pathLine) {
-            pathLine.setLatLngs(routeCoords);
+            pathLine.setLatLngs(pathPoints as L.LatLngExpression[]);
           } else {
-            pathLine = L.polyline(routeCoords, { color: '#ff4500', weight: 8, opacity: 0.9, lineJoin: 'round' }).addTo(map);
+            pathLine = L.polyline(pathPoints as L.LatLngExpression[], { color: '#ea580c', weight: 6, opacity: 0.9, lineJoin: 'round' }).addTo(map);
           }
 
-          // Real-time Pace
-          const durationMin = (Date.now() - startTime) / 60000;
-          const currentPace = durationMin / totalDistance;
+          // Kalkulasi Pace Real-time
+          const currentPace = (elapsedSec / 60) / totalDistance;
           const pMin = Math.floor(currentPace);
           const pSec = Math.round((currentPace - pMin) * 60);
-          paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
-
-          // AUTO-SPLIT LOGIC (Tiap 1 KM)
-          if (Math.floor(totalDistance) > lastKmMark) {
-            lastKmMark = Math.floor(totalDistance);
-            splitEl.innerText = `Last KM ${lastKmMark}: ${pMin}'${pSec.toString().padStart(2, '0')}"`;
-            if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Getar 2x
-          }
+          if (pMin < 20) paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
         }
       }
       lastCoords = current;
-    }, (err) => console.error(err), { enableHighAccuracy: true });
+    }, (err) => console.error(err), { 
+      enableHighAccuracy: true,
+      maximumAge: 1000,
+      timeout: 10000 
+    });
   }
 
   startBtn.addEventListener('click', () => {
@@ -158,33 +168,46 @@ import Layout from '../layouts/Layout.astro';
 
     timerInterval = setInterval(() => {
       const diff = Date.now() - startTime;
-      const h = Math.floor(diff / 3600000);
-      const m = Math.floor((diff % 3600000) / 60000);
+      const m = Math.floor(diff / 60000);
       const s = Math.floor((diff % 60000) / 1000);
-      timeEl.innerText = h > 0 
-        ? `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-        : `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+      timeEl.innerText = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }, 1000);
   });
 
   stopBtn.addEventListener('click', async () => {
-    const activityName = prompt("Nama lari kamu, Den:", "Ngabuburun Sore");
-    if (activityName !== null) {
-      stopBtn.disabled = true;
-      stopBtn.innerText = "Saving...";
-      const durationSec = Math.floor((Date.now() - startTime) / 1000);
+    const activityName = prompt("Beri nama lari kamu, Den:", "Ngabuburun Sore");
+    if (!activityName) return;
 
-      const { error } = await supabase.from('activities').insert([{
-        title: activityName,
-        distance: parseFloat(totalDistance.toFixed(2)),
-        duration: durationSec,
-        user_id: currentUser?.id,
-        route_data: routeCoords,
-        created_at: new Date().toISOString()
-      }]);
+    stopBtn.disabled = true;
+    stopBtn.innerText = "Processing...";
+    clearInterval(timerInterval);
 
-      if (!error) window.location.href = '/';
-      else { alert(error.message); stopBtn.disabled = false; }
+    const runData = {
+      title: activityName,
+      distance: parseFloat(totalDistance.toFixed(2)),
+      duration: Math.floor((Date.now() - startTime) / 1000),
+      user_id: currentUser?.id,
+      route_data: routeCoords,
+      created_at: new Date().toISOString()
+    };
+
+    // --- OFFINE-FIRST LOGIC ---
+    if (!navigator.onLine) {
+      await saveRunLocally(runData);
+      alert("Lari disimpan secara offline! Data akan sinkron otomatis saat kamu online.");
+      window.location.href = '/';
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from('activities').insert([runData]);
+      if (error) throw error;
+      window.location.href = '/';
+    } catch (err: any) {
+      console.warn("Upload gagal, menyimpan ke lokal...", err);
+      await saveRunLocally(runData);
+      alert("Gagal koneksi ke server. Data lari tetap aman di HP kamu (Offline Mode).");
+      window.location.href = '/';
     }
   });
 
@@ -195,5 +218,5 @@ import Layout from '../layouts/Layout.astro';
 
 <style>
   :global(.leaflet-control-attribution) { display: none; }
-  .leaflet-interactive { filter: drop-shadow(0 0 8px rgba(255, 69, 0, 0.4)); }
+  .leaflet-interactive { filter: drop-shadow(0 0 4px rgba(234, 88, 12, 0.4)); }
 </style>

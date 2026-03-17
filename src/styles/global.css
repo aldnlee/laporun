@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+@theme {
+  --color-orange-50: #fff7ed;
+  --color-orange-100: #ffedd5;
+  --color-orange-600: #ea580c;
+}
+
+/* Reset standar */
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden;
+    background-color: var(--color-slate-50);
+  }
+
+  /* Cara v4 untuk handle selection (tanpa @apply modifier) */
+  ::selection {
+    background-color: #ffedd5; /* orange-100 */
+    color: #ea580c; /* orange-600 */
+  }
+}
