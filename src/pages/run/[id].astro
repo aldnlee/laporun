@@ -1,8 +1,6 @@
 ---
-export const prerender = false; // Memastikan halaman ini tidak dibuat statis
 import Layout from '../../layouts/Layout.astro';
 import { supabase } from '../../lib/supabase';
-
 
 const { id } = Astro.params;
 const { data: run } = await supabase.from('activities').select('*').eq('id', id).single();
@@ -11,42 +9,24 @@ if (!run) return Astro.redirect('/');
 ---
 
 <Layout title="Detail Lari">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
-  <main class="p-6 max-w-xl mx-auto">
-    <a href="/" class="text-orange-500 mb-4 block">← Kembali</a>
-    <h1 class="text-2xl font-bold">{run.title}</h1>
-    <p class="text-gray-500 mb-6">{new Date(run.created_at).toLocaleString('id-ID')}</p>
+  <main class="p-6 max-w-xl mx-auto bg-white min-h-screen">
+    <a href="/" class="text-orange-500 font-bold text-sm">← KEMBALI</a>
+    
+    <div class="mt-8">
+      <h1 class="text-4xl font-black text-gray-800">{run.title}</h1>
+      <p class="text-gray-400 font-bold uppercase">{new Date(run.created_at).toLocaleString()}</p>
+    </div>
 
-    <div id="map" class="h-64 w-full rounded-2xl mb-6 shadow-inner bg-gray-100"></div>
-
-    <div class="grid grid-cols-3 gap-2 text-center">
-      <div class="p-2 border rounded-lg">
-        <p class="text-xs text-gray-400">Jarak</p>
-        <p class="font-bold">{run.distance.toFixed(2)} km</p>
+    <div class="grid grid-cols-2 gap-4 my-10">
+      <div class="bg-orange-50 p-6 rounded-3xl">
+        <p class="text-5xl font-black text-orange-600">{run.distance}</p>
+        <p class="text-xs font-bold text-orange-400 italic tracking-widest">KILOMETER</p>
       </div>
-      <div class="p-2 border rounded-lg">
-        <p class="text-xs text-gray-400">Waktu</p>
-        <p class="font-bold">{Math.floor(run.duration / 60)}m</p>
-      </div>
-      <div class="p-2 border rounded-lg">
-        <p class="text-xs text-gray-400">Pace</p>
-        <p class="font-bold">{(run.duration / 60 / run.distance).toFixed(2)} /km</p>
+      <div class="bg-gray-50 p-6 rounded-3xl">
+        <p class="text-3xl font-black text-gray-800">{Math.floor(run.duration / 60)}m {run.duration % 60}s</p>
+        <p class="text-xs font-bold text-gray-400 italic tracking-widest">DURATION</p>
       </div>
     </div>
-  </main>
-
-  <script define:vars={{ coords: run.coords }}>
-    // Script ini berjalan di browser
-    import L from 'leaflet';
     
-    if (coords && coords.length > 0) {
-      const map = L.map('map').setView([coords[0].lat, coords[0].lng], 15);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-      const path = coords.map(c => [c.lat, c.lng]);
-      L.polyline(path, { color: '#f97316', weight: 5 }).addTo(map);
-      map.fitBounds(L.polyline(path).getBounds());
-    }
-  </script>
+    </main>
 </Layout>
