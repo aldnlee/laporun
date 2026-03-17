@@ -1,9 +1,11 @@
 import { defineConfig } from 'astro/config';
-import zeabur from '@zeabur/astro-adapter';
+import node from '@astrojs/node';
 import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
-  output: 'server', // Wajib karena kita pakai fitur Tracker/Database
-  adapter: zeabur(),
+  output: 'server',
+  adapter: node({
+    mode: 'standalone',
+  }),
   integrations: [tailwind()],
 });
