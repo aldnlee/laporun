@@ -225,7 +225,7 @@ import '../styles/global.css';
           activitiesList.innerHTML = `<div class="text-center py-20 bg-white rounded-[40px] border-2 border-dashed border-gray-100"><p class="text-gray-300 font-black italic uppercase tracking-widest text-xs">No runs recorded yet.</p></div>`;
         } else {
           activitiesList.innerHTML = activities.map(run => `
-            <a href="/activity/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
+            <a href="/run/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
               <div class="flex justify-between items-center">
                 <div>
                   <h3 class="font-black text-gray-800 text-xl italic uppercase group-hover:text-orange-600 transition-colors leading-none">${run.title}</h3>
