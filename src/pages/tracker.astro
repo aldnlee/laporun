@@ -123,7 +123,7 @@ import Layout from '../layouts/Layout.astro';
       if (isRunning && lastCoords) {
         const d = lastCoords.distanceTo(current) / 1000;
         // Hanya rekam rute jika akurasi bagus dan ada pergerakan
-        if (d > 0.002 && accuracy < 50) { 
+        if (d > 0.001 && accuracy < 100) { 
           totalDistance += d;
           distanceEl.innerText = totalDistance.toFixed(2);
 
