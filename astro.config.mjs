@@ -5,13 +5,19 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    mode: 'directory', // Mode ini paling aman buat struktur dist/
+    mode: 'directory',
   }),
-  // Matikan optimasi gambar Sharp karena Cloudflare gak support
+  // MATIKAN SERVICE GAMBAR AGAR SHARP TIDAK DIPANGGIL
   image: {
     service: {
-      entrypoint: 'astro/assets/services/noop' 
+      entrypoint: 'astro/assets/services/noop'
     }
   },
   integrations: [tailwind()],
+  vite: {
+    ssr: {
+      // Paksa Vite mengabaikan modul-modul Node.js yang biasanya dipakai Sharp
+      external: ['node:buffer', 'node:stream', 'node:util', 'node:path', 'fs']
+    }
+  }
 });
