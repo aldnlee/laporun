@@ -1,12 +1,5 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { supabase } from '../lib/supabase';
-
-// CEK DI SISI SERVER: Kalau sudah login, jangan kasih akses ke halaman login
-const { data: { user } } = await supabase.auth.getUser();
-if (user) {
-  return Astro.redirect('/');
-}
 ---
 
 <Layout title="Login - Ngabuburun">
@@ -19,30 +12,49 @@ if (user) {
       <p class="text-gray-400 font-bold mt-2 text-[10px] uppercase tracking-[0.3em]">Track your run, chase the sun</p>
     </div>
     
-    <button id="google-login" class="w-full max-w-xs flex items-center justify-center gap-3 bg-white border-2 border-gray-100 py-4 rounded-2xl font-bold text-gray-700 hover:border-orange-200 transition-all shadow-sm active:scale-95">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
-      Continue with Google
-    </button>
+    <div id="login-container">
+        <button id="google-login" class="w-full max-w-xs flex items-center justify-center gap-3 bg-white border-2 border-gray-100 py-4 rounded-2xl font-bold text-gray-700 hover:border-orange-200 transition-all shadow-sm active:scale-95">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-5 h-5" alt="Google">
+          Continue with Google
+        </button>
+    </div>
+
+    <div id="loading-state" class="hidden">
+        <p class="text-orange-500 font-black italic animate-pulse uppercase tracking-widest">Verifying Athlete...</p>
+    </div>
   </main>
 </Layout>
 
 <script>
   import { supabase } from '../lib/supabase';
 
-  // CEK DI SISI CLIENT: Tambahan proteksi jika server-side redirect meleset
+  const loginBtn = document.getElementById('google-login');
+  const loginContainer = document.getElementById('login-container');
+  const loadingState = document.getElementById('loading-state');
+
+  // Cek sesi saat halaman dimuat
   supabase.auth.onAuthStateChange((event, session) => {
     if (session) {
+      // Jika sudah login, langsung ke index
       window.location.href = '/';
     }
   });
 
-  document.getElementById('google-login')?.addEventListener('click', async () => {
-    await supabase.auth.signInWithOAuth({
+  loginBtn?.addEventListener('click', async () => {
+    loginContainer?.classList.add('hidden');
+    loadingState?.classList.remove('hidden');
+
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { 
-        // Pastikan mengarah ke origin yang benar (prod vs dev)
-        redirectTo: `${window.location.origin}/` 
+        redirectTo: window.location.origin
       }
     });
+
+    if (error) {
+      alert("Error: " + error.message);
+      loginContainer?.classList.remove('hidden');
+      loadingState?.classList.add('hidden');
+    }
   });
 </script>

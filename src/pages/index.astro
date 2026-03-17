@@ -1,138 +1,54 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { supabase } from '../lib/supabase';
-
-// 1. Proteksi Server-Side: Ambil User
-const { data: { user } } = await supabase.auth.getUser();
-
-// Jika tidak ada session, arahkan ke login
-if (!user) {
-  return Astro.redirect('/login');
-}
-
-// 2. Ambil Data Aktivitas dari Supabase (Hanya milik user ini)
-const { data: activities } = await supabase
-  .from('activities')
-  .select('*')
-  .eq('user_id', user.id)
-  .order('created_at', { ascending: false });
-
-// --- LOGIC STATISTIK ---
-
-// A. Statistik 4 Minggu Terakhir
-const fourWeeksAgo = new Date();
-fourWeeksAgo.setDate(fourWeeksAgo.getDate() - 28);
-
-const recentActivities = activities?.filter(a => new Date(a.created_at) >= fourWeeksAgo) || [];
-const recentDistance = recentActivities.reduce((acc, curr) => acc + curr.distance, 0);
-const recentTimeSeconds = recentActivities.reduce((acc, curr) => acc + curr.duration, 0);
-
-// B. All-Time Stats
-const totalDistAllTime = activities?.reduce((acc, curr) => acc + curr.distance, 0) || 0;
-const totalActivities = activities?.length || 0;
-
-// C. Best Efforts (PR)
-// Mencari pace terbaik (min/km) dari lari yang minimal berjarak 500 meter
-const efforts = activities?.filter(a => a.distance >= 0.5) || [];
-const bestPaceRun = efforts.length 
-  ? efforts.reduce((min, p) => (p.duration / p.distance < min.duration / min.distance ? p : min), efforts[0])
-  : null;
-
-const formatPace = (duration: number, distance: number) => {
-  if (distance === 0) return "0'00\"";
-  const pace = (duration / 60) / distance;
-  const min = Math.floor(pace);
-  const sec = Math.round((pace - min) * 60);
-  return `${min}'${sec.toString().padStart(2, '0')}"`;
-};
 ---
 
 <Layout title="Dashboard - Laporun">
-  <main class="p-6 max-w-5xl mx-auto font-sans bg-gray-50 min-h-screen">
-    
+  <div id="global-loader" class="fixed inset-0 bg-white z-[9999] flex items-center justify-center">
+    <p class="text-orange-600 font-black italic animate-bounce uppercase tracking-widest">Ngabuburun...</p>
+  </div>
+
+  <main id="dashboard-content" class="hidden p-6 max-w-5xl mx-auto font-sans bg-gray-50 min-h-screen">
     <header class="flex justify-between items-center mb-8">
       <div>
-        <h1 class="text-2xl font-black italic text-orange-600 tracking-tighter uppercase">Ngabuburun</h1>
-        <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Athlete Dashboard</p>
+        <h1 class="text-2xl font-black italic text-orange-600 tracking-tighter uppercase">Dashboard</h1>
+        <p id="user-name" class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Welcome back!</p>
       </div>
       <div class="flex items-center gap-4 bg-white p-2 pr-4 rounded-full shadow-sm border border-gray-100">
-        <img src={user.user_metadata.avatar_url} alt="Profile" class="w-8 h-8 rounded-full border border-orange-100" />
-        <button id="logout-btn" class="text-[10px] font-black text-gray-400 hover:text-red-500 transition-colors uppercase">Logout</button>
+        <img id="user-avatar" src="" class="w-8 h-8 rounded-full border border-orange-100 hidden" />
+        <button id="logout-btn" class="text-[10px] font-black text-gray-400 hover:text-red-500 uppercase">Logout</button>
       </div>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-      
       <aside class="space-y-6">
         <div class="bg-white p-6 rounded-[32px] shadow-sm border border-gray-100">
           <h2 class="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Last 4 Weeks</h2>
-          <div class="grid grid-cols-2 gap-6">
+          <div class="space-y-4">
             <div>
-              <p class="text-3xl font-black text-gray-800">{recentActivities.length}</p>
-              <p class="text-[10px] font-bold text-gray-400 uppercase">Runs</p>
+              <p id="stat-runs" class="text-3xl font-black text-gray-800">0</p>
+              <p class="text-[10px] font-bold text-gray-400 uppercase">Total Runs</p>
             </div>
             <div>
-              <p class="text-3xl font-black text-gray-800">{recentDistance.toFixed(1)}</p>
-              <p class="text-[10px] font-bold text-gray-400 uppercase">Distance (km)</p>
-            </div>
-            <div class="col-span-2">
-              <p class="text-3xl font-black text-gray-800">
-                {Math.floor(recentTimeSeconds / 3600)}h {Math.floor((recentTimeSeconds % 3600) / 60)}m
-              </p>
-              <p class="text-[10px] font-bold text-gray-400 uppercase">Total Time</p>
+              <p id="stat-dist" class="text-3xl font-black text-gray-800">0.0</p>
+              <p class="text-[10px] font-bold text-gray-400 uppercase">Kilometers</p>
             </div>
           </div>
         </div>
 
         <div class="bg-orange-600 p-6 rounded-[32px] text-white shadow-xl shadow-orange-100">
-          <h2 class="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mb-6">All-Time PRs</h2>
-          <div class="space-y-4">
-            <div class="flex justify-between items-end border-b border-orange-500 pb-2">
-              <span class="text-xs font-bold uppercase opacity-80 italic">Best Pace</span>
-              <span class="text-xl font-black">{bestPaceRun ? formatPace(bestPaceRun.duration, bestPaceRun.distance) : "--'--\""}</span>
-            </div>
-            <div class="flex justify-between items-end border-b border-orange-500 pb-2">
-              <span class="text-xs font-bold uppercase opacity-80 italic">Longest Run</span>
-              <span class="text-xl font-black">{totalDistAllTime.toFixed(1)} km</span>
-            </div>
-          </div>
+           <h2 class="text-[10px] font-black opacity-70 uppercase tracking-[0.2em] mb-4 italic">Pro Tip</h2>
+           <p class="text-xs font-bold leading-relaxed">Jaga konsistensi lari sore kamu, Den! Pace bukan segalanya, yang penting gerak.</p>
         </div>
       </aside>
 
       <section class="lg:col-span-2 space-y-4">
-        <div class="flex justify-between items-center mb-2 px-2">
-          <h2 class="font-black italic text-gray-800 uppercase tracking-tight">Recent Activities</h2>
-          <a href="/tracker" class="bg-orange-500 text-white px-6 py-2 rounded-full text-[10px] font-black shadow-lg shadow-orange-100 hover:scale-105 transition-transform">
-            + NEW RUN
-          </a>
+        <div class="flex justify-between items-center px-2">
+          <h2 class="font-black italic text-gray-800 uppercase tracking-tight">Recent Runs</h2>
+          <a href="/tracker" class="bg-orange-500 text-white px-6 py-2 rounded-full text-[10px] font-black shadow-lg shadow-orange-100">+ NEW RUN</a>
         </div>
-
-        {totalActivities === 0 ? (
-          <div class="text-center py-20 bg-white rounded-[32px] border-2 border-dashed border-gray-100">
-            <p class="text-gray-300 font-bold italic uppercase tracking-widest text-sm">Belum ada lari sore ini, Den.</p>
-          </div>
-        ) : (
-          activities?.map((run) => (
-            <a href={`/run/${run.id}`} class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group active:scale-[0.98]">
-              <div class="flex justify-between items-center">
-                <div>
-                  <h3 class="font-black text-gray-800 text-xl italic uppercase group-hover:text-orange-600 transition-colors leading-none">
-                    {run.title || "Ngabuburun"}
-                  </h3>
-                  <p class="text-[10px] font-bold text-gray-400 mt-2 uppercase tracking-widest">
-                    📅 {new Date(run.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
-                  </p>
-                </div>
-                <div class="text-right">
-                  <p class="text-3xl font-black text-gray-800 leading-none">
-                    {run.distance.toFixed(2)}<span class="text-xs ml-1 text-gray-400 font-bold italic uppercase">km</span>
-                  </p>
-                  <p class="text-[10px] font-black text-orange-500 uppercase italic mt-1">View Detail →</p>
-                </div>
-              </div>
-            </a>
-          ))
-        )}
+        <div id="activities-list" class="space-y-4">
+           <p class="text-center py-10 text-gray-300 italic">Loading your activities...</p>
+        </div>
       </section>
     </div>
   </main>
@@ -140,12 +56,72 @@ const formatPace = (duration: number, distance: number) => {
 
 <script>
   import { supabase } from '../lib/supabase';
-  
+
+  const loader = document.getElementById('global-loader');
+  const content = document.getElementById('dashboard-content');
+  const activitiesList = document.getElementById('activities-list');
   const logoutBtn = document.getElementById('logout-btn');
-  logoutBtn?.addEventListener('click', async () => {
-    const { error } = await supabase.auth.signOut();
-    if (!error) {
+
+  async function initDashboard() {
+    // 1. Cek Sesi
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session) {
       window.location.href = '/login';
+      return;
     }
+
+    // 2. Tampilkan User Info
+    const user = session.user;
+    (document.getElementById('user-name')!).innerText = `Athlete: ${user.user_metadata.full_name || user.email}`;
+    const avatar = document.getElementById('user-avatar') as HTMLImageElement;
+    avatar.src = user.user_metadata.avatar_url;
+    avatar.classList.remove('hidden');
+
+    // 3. Tarik Data Aktivitas
+    const { data: activities, error } = await supabase
+      .from('activities')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (!error && activities) {
+      // Hitung Stats Sederhana
+      const totalDist = activities.reduce((acc, curr) => acc + curr.distance, 0);
+      (document.getElementById('stat-runs')!).innerText = activities.length.toString();
+      (document.getElementById('stat-dist')!).innerText = totalDist.toFixed(1);
+
+      // Render List
+      if (activities.length === 0) {
+        activitiesList!.innerHTML = `<p class="text-center py-10 text-gray-400 uppercase text-[10px] font-black tracking-widest">No activities yet. Go for a run!</p>`;
+      } else {
+        activitiesList!.innerHTML = activities.map(run => `
+          <a href="/run/${run.id}" class="block bg-white p-6 rounded-[32px] border border-gray-50 hover:border-orange-200 shadow-sm transition-all group">
+            <div class="flex justify-between items-center">
+              <div>
+                <h3 class="font-black text-gray-800 text-xl italic uppercase group-hover:text-orange-600 transition-colors">${run.title}</h3>
+                <p class="text-[10px] font-bold text-gray-400 mt-2 uppercase tracking-widest">${new Date(run.created_at).toLocaleDateString('id-ID')}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-3xl font-black text-gray-800">${run.distance.toFixed(2)}<span class="text-xs ml-1 text-gray-400 font-bold uppercase">km</span></p>
+                <p class="text-[10px] font-black text-orange-500 uppercase italic mt-1">View Detail →</p>
+              </div>
+            </div>
+          </a>
+        `).join('');
+      }
+    }
+
+    // Tampilkan konten, sembunyikan loader
+    loader?.classList.add('hidden');
+    content?.classList.remove('hidden');
+  }
+
+  logoutBtn?.addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/login';
   });
+
+  // Jalankan inisialisasi
+  initDashboard();
 </script>
