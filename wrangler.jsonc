@@ -1,0 +1,20 @@
+{
+  "name": "ngabuburun",
+  "main": "dist/server/entry.mjs", // SESUAIKAN DENGAN GAMBAR KAMU
+  "compatibility_date": "2026-03-12",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "binding": "ASSETS",
+    "directory": "dist/client" // Arahkan ke folder client
+  },
+  "vars": {
+    "PUBLIC_SUPABASE_URL": "https://fcbbthzgxncqffdmbggr.supabase.co",
+    "PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_gaTn4lQxBtUkLiuzwQd4uA_SigLq0OI"
+  },
+  "kv_namespaces": [
+    {
+      "binding": "SESSION",
+      "id": "f14ef182ee15448eb01612f68298df4a"
+    }
+  ]
+}

@@ -5,12 +5,7 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    mode: 'advanced', // INI WAJIB agar main-nya sesuai
+    mode: 'advanced', // INI KUNCINYA
   }),
-  image: {
-    service: {
-      entrypoint: 'astro/assets/services/noop'
-    }
-  },
   integrations: [tailwind()],
 });

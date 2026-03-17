@@ -1,11 +1,13 @@
 {
   "name": "laporun",
-  "main": "dist/server/entry.mjs",
-  "compatibility_date": "2026-03-06",
+  "main": "dist/server/entry.mjs", 
+  "compatibility_date": "2026-03-17",
   "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
   "assets": {
     "binding": "ASSETS",
-    "directory": "dist/client"
+    "directory": "dist/client",
+    "not_found_handling": "single-page-application"
   },
   "kv_namespaces": [
     {
