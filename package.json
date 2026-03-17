@@ -1,5 +1,5 @@
 {
-  "name": "ngabuburun",
+  "name": "laporun",
   "type": "module",
   "version": "0.0.1",
   "engines": {
@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.2",
-    "@astrojs/netlify": "^7.0.3",
     "@astrojs/tailwind": "^6.0.2",
     "@supabase/supabase-js": "^2.99.2",
     "@types/leaflet": "^1.9.21",
@@ -25,6 +24,6 @@
   },
   "devDependencies": {
     "miniflare": "^4.20260312.1",
-    "wrangler": "^4.74.0"
+    "wrangler": "^3.114.17"
   }
 }

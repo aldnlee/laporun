@@ -1,9 +1,9 @@
 import { defineConfig } from 'astro/config';
-import netlify from '@astrojs/netlify';
-import tailwind from '@astrojs/tailwind';
+import cloudflare from '@astrojs/cloudflare'; // Ganti dari netlify
 
 export default defineConfig({
-  output: 'server', // WAJIB ADA untuk SSR
-  adapter: netlify(),
-  integrations: [tailwind()],
+  output: 'server', // Tetap server karena kita pakai Supabase Auth
+  adapter: cloudflare({
+    mode: 'directory', // Mode standar untuk Cloudflare Pages
+  }),
 });
