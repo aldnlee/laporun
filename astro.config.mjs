@@ -5,10 +5,12 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    mode: 'directory',
-    // Kita matikan fitur-fitur yang memicu error config otomatis
-    imageService: 'passthrough', 
+    mode: 'advanced', // INI WAJIB agar main-nya sesuai
   }),
+  image: {
+    service: {
+      entrypoint: 'astro/assets/services/noop'
+    }
+  },
   integrations: [tailwind()],
-  // Pastikan tidak ada settingan 'image' yang aneh di sini
 });

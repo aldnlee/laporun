@@ -3,10 +3,10 @@
   "type": "module",
   "version": "0.0.1",
   "scripts": {
-    "dev": "astro dev",
-    "build": "astro build",
-    "preview": "pnpm wrangler pages dev ./dist"
-  },
+  "dev": "astro dev",
+  "build": "astro build",
+  "deploy": "pnpm run build && npx wrangler deploy --config wrangler.deploy.json"
+},
   "dependencies": {
     "@astrojs/cloudflare": "^13.1.2",
     "@astrojs/tailwind": "^6.0.2",
