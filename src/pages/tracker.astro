@@ -3,80 +3,93 @@ import Layout from '../layouts/Layout.astro';
 ---
 
 <Layout title="Live Tracking - Ngabuburun">
-  <main class="p-6 max-w-xl mx-auto font-sans flex flex-col h-screen justify-between">
+  <main class="p-6 max-w-xl mx-auto font-sans flex flex-col h-screen justify-between bg-white">
+    
     <div class="text-center mt-10">
-      <h1 class="text-gray-500 uppercase tracking-widest text-sm font-bold">Live Tracking</h1>
+      <h1 class="text-gray-400 uppercase tracking-widest text-xs font-bold">Live Tracking</h1>
       
       <div class="my-10">
-        <p id="display-distance" class="text-8xl font-black text-orange-600">0.00</p>
+        <p id="display-distance" class="text-8xl font-black text-orange-600 transition-all">0.00</p>
         <p class="text-xl font-bold text-gray-400">KILOMETER</p>
       </div>
 
-      <div class="grid grid-cols-2 gap-8 border-t border-b py-8">
+      <div class="grid grid-cols-2 gap-8 border-y border-gray-100 py-8">
         <div>
           <p id="display-pace" class="text-3xl font-bold text-gray-800">0'00"</p>
-          <p class="text-xs text-gray-400 uppercase">Pace (min/km)</p>
+          <p class="text-xs text-gray-400 uppercase font-semibold">Pace (min/km)</p>
         </div>
         <div>
           <p id="display-time" class="text-3xl font-bold text-gray-800">00:00</p>
-          <p class="text-xs text-gray-400 uppercase">Waktu</p>
+          <p class="text-xs text-gray-400 uppercase font-semibold">Waktu</p>
         </div>
       </div>
     </div>
 
     <div class="mb-10 flex flex-col gap-4">
-      <button id="start-btn" class="w-full bg-orange-500 text-white py-5 rounded-2xl font-black text-xl shadow-lg">
+      <button id="start-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white py-5 rounded-3xl font-black text-xl shadow-xl shadow-orange-200 transition-all active:scale-95">
         MULAI LARI
       </button>
-      <button id="stop-btn" class="hidden w-full bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg">
+      
+      <button id="stop-btn" class="hidden w-full bg-red-500 hover:bg-red-600 text-white py-5 rounded-3xl font-black text-xl shadow-xl shadow-red-100 transition-all active:scale-95">
         BERHENTI & SIMPAN
       </button>
     </div>
   </main>
 
   <script>
+    import { supabase } from '../lib/supabase';
 
-  // Pakai type assertion 'as HTMLElement' supaya merah-merahnya hilang
-  const distanceEl = document.getElementById('display-distance') as HTMLElement;
-  const paceEl = document.getElementById('display-pace') as HTMLElement;
-  const timeEl = document.getElementById('display-time') as HTMLElement;
-  const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
-  const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
+    // Type casting supaya nggak merah-merah di VS Code
+    const distanceEl = document.getElementById('display-distance') as HTMLElement;
+    const paceEl = document.getElementById('display-pace') as HTMLElement;
+    const timeEl = document.getElementById('display-time') as HTMLElement;
+    const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
+    const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
 
-  let watchId: number | null = null;
-  let startTime: number | null = null;
-  let totalDistance = 0; 
-  let lastCoords: { latitude: number; longitude: number } | null = null;
+    let watchId: number | null = null;
+    let startTime: number | null = null;
+    let totalDistance = 0;
+    let lastCoords: { latitude: number; longitude: number } | null = null;
+    let timerInterval: number | null = null;
 
-  function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  }
+    // Fungsi hitung jarak (Haversine Formula)
+    function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+      const R = 6371; // Radius Bumi dalam KM
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
 
-  startBtn.addEventListener('click', () => {
-    startTime = Date.now();
-    startBtn.classList.add('hidden');
-    stopBtn.classList.remove('hidden');
+    // Fungsi Mulai
+    startBtn.addEventListener('click', () => {
+      if (!("geolocation" in navigator)) {
+        alert("Browser kamu nggak dukung GPS, Den!");
+        return;
+      }
 
-    if ("geolocation" in navigator) {
+      startTime = Date.now();
+      startBtn.classList.add('hidden');
+      stopBtn.classList.remove('hidden');
+
+      // 1. Tracking GPS
       watchId = navigator.geolocation.watchPosition((position) => {
         const { latitude, longitude, accuracy } = position.coords;
 
-        if (accuracy > 30) return; // Toleransi 30 meter biar nggak terlalu ketat
+        // Filter akurasi (abaikan jika > 30 meter supaya gak lompat-lompat)
+        if (accuracy > 30) return;
 
         if (lastCoords) {
-          const d = calculateDistance(lastCoords.latitude, lastCoords.longitude, latitude, longitude);
+          const dist = calculateDistance(lastCoords.latitude, lastCoords.longitude, latitude, longitude);
           
-          // Akumulasi jarak jika bergerak lebih dari 5 meter (mengurangi GPS jitter)
-          if (d > 0.005) { 
-            totalDistance += d;
+          // Filter jitter: hanya hitung jika gerak > 3 meter
+          if (dist > 0.003) {
+            totalDistance += dist;
             distanceEl.innerText = totalDistance.toFixed(2);
-            
+
+            // Update Pace
             if (startTime && totalDistance > 0) {
               const durationMin = (Date.now() - startTime) / 60000;
               const pace = durationMin / totalDistance;
@@ -87,14 +100,13 @@ import Layout from '../layouts/Layout.astro';
           }
         }
         lastCoords = { latitude, longitude };
-      }, (err) => console.error(err), {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000
-      });
+      }, 
+      (err) => console.error("GPS Error:", err), 
+      { enableHighAccuracy: true, maximumAge: 1000 }
+      );
 
-      // Timer Update
-      setInterval(() => {
+      // 2. Timer Visual
+      timerInterval = window.setInterval(() => {
         if (startTime) {
           const diff = Date.now() - startTime;
           const min = Math.floor(diff / 60000);
@@ -102,16 +114,50 @@ import Layout from '../layouts/Layout.astro';
           timeEl.innerText = `${min.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
         }
       }, 1000);
-    }
-  });
+    });
 
-  stopBtn.addEventListener('click', () => {
-    if (watchId !== null) {
-      navigator.geolocation.clearWatch(watchId);
-      alert(`Lari selesai! Jarak: ${totalDistance.toFixed(2)} KM`);
-      // Nanti di sini kita tambah fungsi simpan ke Supabase
-      location.href = '/'; // Balik ke dashboard
-    }
-  });
-</script>
+    // Fungsi Berhenti & Simpan
+    stopBtn.addEventListener('click', async () => {
+      if (watchId !== null && timerInterval !== null && startTime !== null) {
+        // Matikan sensor
+        navigator.geolocation.clearWatch(watchId);
+        clearInterval(timerInterval);
+
+        const confirmSave = confirm("Mau simpan lari ini?");
+        if (!confirmSave) {
+          location.reload(); // Reset saja
+          return;
+        }
+
+        stopBtn.disabled = true;
+        stopBtn.innerText = "MENYIMPAN...";
+
+        const durationSeconds = Math.floor((Date.now() - startTime) / 1000);
+
+        try {
+          const { error } = await supabase
+            .from('activities')
+            .insert([
+              {
+                title: 'Ngabuburun',
+                distance: parseFloat(totalDistance.toFixed(2)),
+                duration: durationSeconds,
+                created_at: new Date().toISOString()
+              }
+            ]);
+
+          if (error) throw error;
+
+          alert("Mantap! Data berhasil masuk Supabase.");
+          window.location.href = '/'; // Balik ke Dashboard
+
+        } catch (err: any) {
+          console.error("Gagal Simpan:", err.message);
+          alert("Gagal simpan data, Den. Cek koneksi!");
+          stopBtn.disabled = false;
+          stopBtn.innerText = "COBA SIMPAN LAGI";
+        }
+      }
+    });
+  </script>
 </Layout>
