@@ -1,0 +1,1 @@
+export { onRequest as default } from "../dist/server/entry.mjs";
