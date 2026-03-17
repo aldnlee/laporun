@@ -1,11 +1,9 @@
 import { defineConfig } from 'astro/config';
-import cloudflare from '@astrojs/cloudflare';
+import netlify from '@astrojs/netlify';
 import tailwind from '@astrojs/tailwind';
 
 export default defineConfig({
   output: 'server',
-  adapter: cloudflare({
-    mode: 'advanced', // INI KUNCINYA
-  }),
+  adapter: netlify(),
   integrations: [tailwind()],
 });
