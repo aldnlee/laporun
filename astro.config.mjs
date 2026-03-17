@@ -5,7 +5,7 @@ import tailwind from '@astrojs/tailwind';
 export default defineConfig({
   output: 'server',
   adapter: cloudflare({
-    mode: 'directory',
+    mode: 'advanced',
     // Tambahkan ini untuk menghilangkan warning dideprecated
     entrypointResolution: 'auto' 
   }),
