@@ -8,7 +8,7 @@ import Layout from '../layouts/Layout.astro';
     <div class="text-center mt-4">
       <div class="flex justify-center items-center gap-2 mb-1">
         <div id="gps-dot" class="w-2 h-2 rounded-full bg-gray-300 animate-pulse"></div>
-        <h1 id="gps-status" class="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Mencari Sinyal GPS...</h1>
+        <h1 id="gps-status" class="text-gray-400 uppercase tracking-widest text-[10px] font-bold italic">Menginisialisasi GPS...</h1>
       </div>
       
       <div class="my-4">
@@ -28,8 +28,8 @@ import Layout from '../layouts/Layout.astro';
       </div>
     </div>
 
-    <div class="relative flex-grow mb-6 overflow-hidden rounded-3xl border-2 border-gray-100 shadow-inner group">
-      <div id="map" class="h-full w-full z-0 bg-gray-50"></div>
+    <div class="relative flex-grow mb-6 overflow-hidden rounded-3xl border-2 border-gray-100 shadow-inner group min-h-[300px]">
+      <div id="map" class="absolute inset-0 z-0 bg-gray-50"></div>
       
       <button id="recenter-btn" class="absolute bottom-4 right-4 z-[1000] bg-white p-3 rounded-2xl shadow-xl active:scale-90 transition-all border border-gray-100 hover:bg-orange-50 group">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-500 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -76,17 +76,44 @@ import Layout from '../layouts/Layout.astro';
   let marker: L.CircleMarker;
   let routeCoords: L.LatLngExpression[] = [];
 
-  // Init Peta
+  // 1. Setup Peta SEGERA
   map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16); 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+  // 2. Fungsi Minta Izin GPS Langsung (Auto-run)
+  function initGPS() {
+    if (!("geolocation" in navigator)) {
+      statusEl.innerText = "Browser tidak support GPS";
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition((position) => {
+      const { latitude, longitude, accuracy } = position.coords;
+      const currentLatLng = new L.LatLng(latitude, longitude);
+
+      statusEl.innerText = "GPS Siap (" + Math.round(accuracy) + "m)";
+      dotEl.className = "w-2 h-2 rounded-full bg-green-500";
+      
+      map.flyTo(currentLatLng, 17);
+      
+      if (!marker) {
+        marker = L.circleMarker(currentLatLng, { radius: 10, color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 3 }).addTo(map);
+      }
+      lastCoords = currentLatLng;
+    }, (err) => {
+      statusEl.innerText = "Klik 'Mulai' untuk izinkan GPS";
+      console.warn("Init GPS ditolak atau timeout");
+    }, { enableHighAccuracy: true, timeout: 5000 });
+  }
+
+  initGPS();
 
   recenterBtn.addEventListener('click', () => {
     if (lastCoords) map.flyTo(lastCoords, 17);
   });
 
+  // 3. Logic Start Tracking
   startBtn.addEventListener('click', () => {
-    if (!("geolocation" in navigator)) return alert("GPS tidak didukung!");
-
     startTime = Date.now();
     startBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
@@ -95,42 +122,35 @@ import Layout from '../layouts/Layout.astro';
       const { latitude, longitude, accuracy } = position.coords;
       const currentLatLng = new L.LatLng(latitude, longitude);
 
-      // Update Indikator Status
+      // Indikator Akurasi
       if (accuracy > 40) {
-        statusEl.innerText = `Sinyal Lemah (${Math.round(accuracy)}m)`;
+        statusEl.innerText = `Sinyal Kurang (${Math.round(accuracy)}m)`;
         dotEl.className = "w-2 h-2 rounded-full bg-yellow-400 animate-pulse";
       } else {
-        statusEl.innerText = "GPS Terkoneksi";
-        dotEl.className = "w-2 h-2 rounded-full bg-green-500";
+        statusEl.innerText = "Tracking Aktif";
+        dotEl.className = "w-2 h-2 rounded-full bg-green-500 animate-ping";
       }
 
-      // Lock Posisi Pertama
-      if (!lastCoords) {
-        map.flyTo(currentLatLng, 17);
-        marker = L.circleMarker(currentLatLng, { radius: 10, color: 'white', fillColor: '#3b82f6', fillOpacity: 1, weight: 3 }).addTo(map);
-        lastCoords = currentLatLng;
-        return; 
-      }
+      if (lastCoords) {
+        const dist = lastCoords.distanceTo(currentLatLng) / 1000;
+        // Hanya hitung jika akurasi OK dan gerak nyata
+        if (dist > 0.003 && accuracy <= 50) {
+          totalDistance += dist;
+          distanceEl.innerText = totalDistance.toFixed(2);
+          
+          routeCoords.push([latitude, longitude]);
+          if (pathLine) {
+            pathLine.setLatLngs(routeCoords);
+          } else {
+            pathLine = L.polyline(routeCoords, { color: '#f97316', weight: 6, lineJoin: 'round' }).addTo(map);
+          }
 
-      // Hitung Jarak & Gambar Jalur
-      const dist = lastCoords.distanceTo(currentLatLng) / 1000;
-      if (dist > 0.003 && accuracy <= 40) {
-        totalDistance += dist;
-        distanceEl.innerText = totalDistance.toFixed(2);
-        
-        routeCoords.push([latitude, longitude]);
-        if (pathLine) {
-          pathLine.setLatLngs(routeCoords);
-        } else {
-          pathLine = L.polyline(routeCoords, { color: '#f97316', weight: 6 }).addTo(map);
+          const durationMin = (Date.now() - startTime!) / 60000;
+          const pace = durationMin / totalDistance;
+          const pMin = Math.floor(pace);
+          const pSec = Math.round((pace - pMin) * 60);
+          paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
         }
-
-        // Pace
-        const durationMin = (Date.now() - startTime!) / 60000;
-        const pace = durationMin / totalDistance;
-        const pMin = Math.floor(pace);
-        const pSec = Math.round((pace - pMin) * 60);
-        paceEl.innerText = `${pMin}'${pSec.toString().padStart(2, '0')}"`;
       }
 
       lastCoords = currentLatLng;
@@ -138,11 +158,10 @@ import Layout from '../layouts/Layout.astro';
       map.panTo(currentLatLng);
     }, 
     (err) => {
-      statusEl.innerText = "GPS Error!";
+      statusEl.innerText = "Koneksi Terputus";
       dotEl.className = "w-2 h-2 rounded-full bg-red-500";
-      console.error(err);
     }, 
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }
+    { enableHighAccuracy: true, maximumAge: 0 }
     );
 
     timerInterval = setInterval(() => {
@@ -157,7 +176,7 @@ import Layout from '../layouts/Layout.astro';
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       clearInterval(timerInterval);
-      if (!confirm("Simpan lari ini?")) return location.reload();
+      if (!confirm("Sudah lemas? Simpan datanya ya!")) return;
 
       stopBtn.disabled = true;
       stopBtn.innerText = "SAVING...";
@@ -172,7 +191,7 @@ import Layout from '../layouts/Layout.astro';
         if (error) throw error;
         window.location.href = '/';
       } catch (err) {
-        alert("Gagal simpan!");
+        alert("Gagal simpan ke database!");
         stopBtn.disabled = false;
         stopBtn.innerText = "RETRY";
       }
@@ -182,5 +201,5 @@ import Layout from '../layouts/Layout.astro';
 
 <style>
   :global(.leaflet-control-attribution) { display: none; }
-  #map { -webkit-tap-highlight-color: transparent; }
+  #map { -webkit-tap-highlight-color: transparent; outline: none; }
 </style>
