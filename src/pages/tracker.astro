@@ -38,7 +38,7 @@ import Layout from '../layouts/Layout.astro';
 
   <script>
     import { supabase } from '../lib/supabase';
-
+    declare const L: any;
     // Type casting supaya nggak merah-merah di VS Code
     const distanceEl = document.getElementById('display-distance') as HTMLElement;
     const paceEl = document.getElementById('display-pace') as HTMLElement;
