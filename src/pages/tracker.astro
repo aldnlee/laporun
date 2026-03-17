@@ -4,31 +4,44 @@ import Layout from '../layouts/Layout.astro';
 
 <Layout title="Live Tracking - Ngabuburun">
   <main class="p-6 max-w-xl mx-auto font-sans flex flex-col h-screen bg-white">
+    
     <div class="text-center mt-4">
-      <h1 class="text-gray-400 uppercase tracking-widest text-[10px] font-bold">Live Tracking</h1>
+      <h1 class="text-gray-400 uppercase tracking-widest text-[10px] font-bold italic">Ngabuburun Live</h1>
+      
       <div class="my-4">
-        <p id="display-distance" class="text-7xl font-black text-orange-600">0.00</p>
-        <p class="text-sm font-bold text-gray-400 uppercase">Kilometer</p>
+        <p id="display-distance" class="text-7xl font-black text-orange-600 tracking-tight transition-all">0.00</p>
+        <p class="text-sm font-bold text-gray-400 uppercase tracking-widest">Kilometer</p>
       </div>
+
       <div class="grid grid-cols-2 gap-4 border-y border-gray-100 py-4 mb-4">
-        <div>
+        <div class="border-r border-gray-100">
           <p id="display-pace" class="text-2xl font-bold text-gray-800">0'00"</p>
-          <p class="text-[10px] text-gray-400 uppercase font-bold">Pace (min/km)</p>
+          <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Pace (min/km)</p>
         </div>
         <div>
           <p id="display-time" class="text-2xl font-bold text-gray-800">00:00</p>
-          <p class="text-[10px] text-gray-400 uppercase font-bold">Waktu</p>
+          <p class="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Waktu</p>
         </div>
       </div>
     </div>
 
-    <div id="map" class="flex-grow rounded-3xl border-2 border-gray-100 shadow-inner z-0 mb-6 bg-gray-50" style="min-height: 300px;"></div>
+    <div class="relative flex-grow mb-6 overflow-hidden rounded-3xl border-2 border-gray-100 shadow-inner group">
+      <div id="map" class="h-full w-full z-0 bg-gray-50"></div>
+      
+      <button id="recenter-btn" class="absolute bottom-4 right-4 z-[1000] bg-white p-3 rounded-2xl shadow-xl active:scale-90 transition-all border border-gray-100 hover:bg-orange-50 group">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-orange-500 group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      </button>
+    </div>
 
     <div class="mb-6 flex flex-col gap-4">
-      <button id="start-btn" class="w-full bg-orange-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all">
+      <button id="start-btn" class="w-full bg-orange-500 hover:bg-orange-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg shadow-orange-100 active:scale-95 transition-all">
         MULAI LARI
       </button>
-      <button id="stop-btn" class="hidden w-full bg-red-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg active:scale-95 transition-all">
+      
+      <button id="stop-btn" class="hidden w-full bg-red-500 hover:bg-red-600 text-white py-5 rounded-2xl font-black text-xl shadow-lg shadow-red-100 active:scale-95 transition-all">
         BERHENTI & SIMPAN
       </button>
     </div>
@@ -36,62 +49,80 @@ import Layout from '../layouts/Layout.astro';
 </Layout>
 
 <script>
-  // IMPORT LEAFLET & CSS-NYA DISINI
   import L from 'leaflet';
   import 'leaflet/dist/leaflet.css';
   import { supabase } from '../lib/supabase';
 
+  // Elements
   const distanceEl = document.getElementById('display-distance') as HTMLElement;
   const paceEl = document.getElementById('display-pace') as HTMLElement;
   const timeEl = document.getElementById('display-time') as HTMLElement;
   const startBtn = document.getElementById('start-btn') as HTMLButtonElement;
   const stopBtn = document.getElementById('stop-btn') as HTMLButtonElement;
+  const recenterBtn = document.getElementById('recenter-btn') as HTMLButtonElement;
 
+  // Variables
   let watchId: number | null = null;
   let startTime: number | null = null;
   let totalDistance = 0;
   let lastCoords: L.LatLng | null = null;
   let timerInterval: any = null;
   
-  // Peta logic
+  // Leaflet Objects
   let map: L.Map;
   let pathLine: L.Polyline;
   let marker: L.CircleMarker;
   let routeCoords: L.LatLngExpression[] = [];
 
-  // Inisialisasi Map (Titik default Jakarta atau UIN)
-  map = L.map('map').setView([-6.3024, 106.7551], 15); 
+  // Inisialisasi Peta (Default ke Jakarta/UIN)
+  map = L.map('map', { zoomControl: false }).setView([-6.3024, 106.7551], 16); 
   
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap'
   }).addTo(map);
 
+  // Fungsi Re-center
+  recenterBtn.addEventListener('click', () => {
+    if (lastCoords) {
+      map.flyTo(lastCoords, 17, { animate: true, duration: 1 });
+    } else {
+      alert("GPS belum dapet sinyal, Den!");
+    }
+  });
+
+  // Start Running
   startBtn.addEventListener('click', () => {
+    if (!("geolocation" in navigator)) return alert("HP-mu ga support GPS, Den.");
+
     startTime = Date.now();
     startBtn.classList.add('hidden');
     stopBtn.classList.remove('hidden');
 
     watchId = navigator.geolocation.watchPosition((position) => {
       const { latitude, longitude, accuracy } = position.coords;
+      
+      // Filter sinyal buruk
       if (accuracy > 40) return;
 
       const currentLatLng = new L.LatLng(latitude, longitude);
 
       if (lastCoords) {
-        // Pakai fungsi bawaan Leaflet buat hitung jarak (lebih akurat & simpel)
-        const d = lastCoords.distanceTo(currentLatLng) / 1000; // Jadi KM
+        // Hitung jarak pakai rumus Leaflet
+        const d = lastCoords.distanceTo(currentLatLng) / 1000; // meter ke KM
         
-        if (d > 0.003) {
+        if (d > 0.003) { // Hanya hitung jika pindah > 3 meter
           totalDistance += d;
           distanceEl.innerText = totalDistance.toFixed(2);
           
+          // Gambar Jalur
           routeCoords.push([latitude, longitude]);
           if (pathLine) {
             pathLine.setLatLngs(routeCoords);
           } else {
-            pathLine = L.polyline(routeCoords, {color: '#f97316', weight: 5}).addTo(map);
+            pathLine = L.polyline(routeCoords, { color: '#f97316', weight: 6, opacity: 0.8 }).addTo(map);
           }
 
+          // Hitung Pace
           const durationMin = (Date.now() - startTime!) / 60000;
           const pace = durationMin / totalDistance;
           const pMin = Math.floor(pace);
@@ -100,16 +131,27 @@ import Layout from '../layouts/Layout.astro';
         }
       }
 
+      // Update Posisi & Marker
       lastCoords = currentLatLng;
-      map.setView(currentLatLng, 17);
+      map.flyTo(currentLatLng, map.getZoom()); // Ikuti pergerakan pelan-pelan
       
       if (marker) {
         marker.setLatLng(currentLatLng);
       } else {
-        marker = L.circleMarker(currentLatLng, { radius: 8, color: '#3b82f6', fillOpacity: 1 }).addTo(map);
+        marker = L.circleMarker(currentLatLng, { 
+          radius: 10, 
+          color: 'white', 
+          fillColor: '#3b82f6', 
+          fillOpacity: 1, 
+          weight: 3 
+        }).addTo(map);
       }
-    }, (err) => alert("Nyalain GPS-nya dong Den!"), { enableHighAccuracy: true });
+    }, 
+    (err) => console.error(err), 
+    { enableHighAccuracy: true, maximumAge: 1000 }
+    );
 
+    // Timer Visual
     timerInterval = setInterval(() => {
       const diff = Date.now() - startTime!;
       const min = Math.floor(diff / 60000);
@@ -118,21 +160,46 @@ import Layout from '../layouts/Layout.astro';
     }, 1000);
   });
 
+  // Stop & Save
   stopBtn.addEventListener('click', async () => {
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       clearInterval(timerInterval);
       
-      const duration = Math.floor((Date.now() - startTime!) / 1000);
-      
-      const { error } = await supabase.from('activities').insert([{
-        title: 'Ngabuburun Sore',
-        distance: parseFloat(totalDistance.toFixed(2)),
-        duration: duration,
-        created_at: new Date().toISOString()
-      }]);
+      const confirmSave = confirm("Finish? Data bakal dikirim ke Supabase.");
+      if (!confirmSave) return location.reload();
 
-      if (!error) window.location.href = '/';
+      stopBtn.disabled = true;
+      stopBtn.innerText = "SAVING...";
+
+      const durationSec = Math.floor((Date.now() - startTime!) / 1000);
+      
+      try {
+        const { error } = await supabase.from('activities').insert([{
+          title: 'Ngabuburun Sore',
+          distance: parseFloat(totalDistance.toFixed(2)),
+          duration: durationSec,
+          created_at: new Date().toISOString()
+        }]);
+
+        if (error) throw error;
+        window.location.href = '/';
+      } catch (err) {
+        alert("Gagal simpan! Cek internet.");
+        stopBtn.disabled = false;
+        stopBtn.innerText = "RETRY SAVE";
+      }
     }
   });
 </script>
+
+<style>
+  /* Menghilangkan watermark leaflet biar bersih */
+  :global(.leaflet-control-attribution) {
+    display: none;
+  }
+  /* Mencegah highlight biru pas klik map di mobile */
+  #map {
+    -webkit-tap-highlight-color: transparent;
+  }
+</style>
