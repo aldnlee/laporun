@@ -1,11 +1,498 @@
 ---
-import Welcome from '../components/Welcome.astro';
-import Layout from '../layouts/Layout.astro';
-
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+// Laporun - GPS Tracker Standalone (Zero-Install CDN)
 ---
 
-<Layout>
-	<Welcome />
-</Layout>
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Laporun - Live Tracker</title>
+
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com" is:inline></script>
+
+    <!-- Leaflet via CDN -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" is:inline></script>
+
+    <style is:global>
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+      }
+      #map {
+        height: 100%;
+        width: 100%;
+        z-index: 1;
+      }
+      .leaflet-control-attribution {
+        display: none !important;
+      }
+      .km-badge {
+        background-color: #0f172a;
+        color: #f97316;
+        border: 2px solid #f97316;
+        border-radius: 9999px;
+        font-size: 10px;
+        font-weight: 900;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+      }
+    </style>
+  </head>
+  <body class="bg-slate-900 text-slate-100 font-sans h-screen flex flex-col justify-between select-none overflow-hidden">
+    <!-- Header -->
+    <header class="p-4 flex justify-between items-center bg-slate-800/90 backdrop-blur border-b border-slate-700/60 z-10 shrink-0">
+      <div>
+        <h1 class="text-xl font-black italic tracking-tight text-orange-500 uppercase">Laporun</h1>
+        <p class="text-[9px] font-bold text-slate-400 tracking-widest uppercase">GPS Tracker + Split Monitor</p>
+      </div>
+      <div id="gps-status" class="flex items-center gap-2 bg-slate-700/50 px-3 py-1.5 rounded-full border border-slate-600">
+        <span id="gps-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
+        <span id="gps-text" class="text-[9px] font-black tracking-wider uppercase text-slate-300">GPS Standby</span>
+      </div>
+    </header>
+
+    <!-- Map Area -->
+    <div class="relative flex-1 w-full bg-slate-950 overflow-hidden">
+      <div id="map"></div>
+
+      <!-- Tombol Re-center -->
+      <button
+        id="btn-recenter"
+        type="button"
+        class="absolute bottom-4 right-4 z-[400] bg-slate-900/90 hover:bg-slate-800 active:scale-95 text-orange-500 p-3.5 rounded-2xl shadow-xl border border-slate-700/80 transition-all cursor-pointer flex items-center justify-center"
+        title="Pusatkan ke lokasi saya"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <circle cx="12" cy="12" r="3" stroke-width="2.5"></circle>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 2v3m0 14v3M2 12h3m14 0h3"></path>
+        </svg>
+      </button>
+    </div>
+
+    <!-- HUD Metrics & Controls -->
+    <div class="bg-slate-800 border-t border-slate-700/60 p-5 rounded-t-3xl shadow-2xl space-y-4 z-10 shrink-0">
+      <div class="grid grid-cols-3 gap-2 text-center divide-x divide-slate-700/50">
+        <div>
+          <p class="text-[9px] font-bold uppercase text-slate-400">Jarak</p>
+          <p class="text-3xl font-black tracking-tight text-white mt-1"><span id="metric-dist">0.00</span></p>
+          <p class="text-[9px] font-bold uppercase text-orange-400">KM</p>
+        </div>
+        <div>
+          <p class="text-[9px] font-bold uppercase text-slate-400">Durasi</p>
+          <p class="text-3xl font-black tracking-tight text-white mt-1" id="metric-time">00:00</p>
+          <p class="text-[9px] font-bold uppercase text-orange-400">Waktu</p>
+        </div>
+        <div>
+          <p class="text-[9px] font-bold uppercase text-slate-400">Current Pace</p>
+          <p class="text-3xl font-black tracking-tight text-white mt-1" id="metric-pace">--'--"</p>
+          <p class="text-[9px] font-bold uppercase text-orange-400">/KM</p>
+        </div>
+      </div>
+
+      <div class="flex gap-2">
+        <button
+          id="btn-run"
+          class="flex-1 py-4 bg-orange-600 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer"
+        >
+          Start Run
+        </button>
+        <button
+          id="btn-finish"
+          class="hidden px-5 py-4 bg-green-600 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
+        >
+          Finish
+        </button>
+        <button
+          id="btn-reset"
+          class="px-5 py-4 bg-slate-700 active:scale-[0.98] text-slate-300 font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+
+    <!-- Modal Recap -->
+    <div id="modal-summary" class="hidden fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[1000] p-4 flex items-end sm:items-center justify-center overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 w-full max-w-lg rounded-3xl p-6 shadow-2xl space-y-6 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-4 shrink-0">
+          <div>
+            <h2 class="text-2xl font-black italic tracking-tight text-orange-500 uppercase">Activity Recap</h2>
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest" id="recap-timestamp">Run Finished</p>
+          </div>
+          <button id="btn-close-modal" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-full cursor-pointer">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+            </svg>
+          </button>
+        </div>
+
+        <div class="space-y-6 overflow-y-auto pr-1">
+          <div class="grid grid-cols-2 gap-3">
+            <div class="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/40 text-center">
+              <p class="text-[10px] font-bold uppercase text-slate-400">Total Jarak</p>
+              <p class="text-3xl font-black text-white mt-1"><span id="summary-dist">0.00</span> <span class="text-xs text-orange-400">KM</span></p>
+            </div>
+            <div class="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/40 text-center">
+              <p class="text-[10px] font-bold uppercase text-slate-400">Total Waktu</p>
+              <p class="text-3xl font-black text-white mt-1" id="summary-time">00:00</p>
+            </div>
+            <div class="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/40 text-center">
+              <p class="text-[10px] font-bold uppercase text-slate-400">Avg Pace</p>
+              <p class="text-2xl font-black text-white mt-1" id="summary-avg-pace">--'--"</p>
+            </div>
+            <div class="bg-slate-800/60 p-4 rounded-2xl border border-slate-700/40 text-center">
+              <p class="text-[10px] font-bold uppercase text-slate-400">Best Split</p>
+              <p class="text-2xl font-black text-green-400 mt-1" id="summary-best-split">--'--"</p>
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <h3 class="text-xs font-black uppercase tracking-widest text-slate-300">Kilometer Splits</h3>
+            <div id="splits-container" class="space-y-2"></div>
+          </div>
+        </div>
+
+        <div class="pt-2 border-t border-slate-800 shrink-0">
+          <button
+            id="btn-recap-done"
+            class="w-full py-4 bg-orange-600 hover:bg-orange-500 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer"
+          >
+            Kembali ke Peta
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Script Logic -->
+    <script is:inline>
+      let map, pathLine, currentMarker, startMarker, endMarker;
+      let splitMarkers = [];
+      let isTracking = false;
+      let watchId = null;
+      let timer = null;
+
+      let totalKm = 0;
+      let seconds = 0;
+      let routeCoords = [];
+      let latestLatLng = null;
+
+      let splits = [];
+      let lastSplitSec = 0;
+      let nextTargetKm = 1;
+
+      function initMap() {
+        map = L.map('map', { zoomControl: false }).setView([-6.2088, 106.8456], 16);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19
+        }).addTo(map);
+
+        pathLine = L.polyline([], {
+          color: '#f97316',
+          weight: 5,
+          opacity: 0.9,
+          lineJoin: 'round'
+        }).addTo(map);
+
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              latestLatLng = [pos.coords.latitude, pos.coords.longitude];
+              map.setView(latestLatLng, 16);
+              updateCurrentMarker(latestLatLng);
+            },
+            (err) => console.warn('Gagal baca posisi:', err.message),
+            { enableHighAccuracy: true }
+          );
+        }
+      }
+
+      function updateCurrentMarker(latLng) {
+        if (!currentMarker) {
+          currentMarker = L.circleMarker(latLng, {
+            radius: 8,
+            fillColor: '#f97316',
+            color: '#ffffff',
+            weight: 3,
+            fillOpacity: 1
+          }).addTo(map);
+        } else {
+          currentMarker.setLatLng(latLng);
+        }
+      }
+
+      function getDistanceKm(lat1, lon1, lat2, lon2) {
+        const R = 6371;
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+      }
+
+      function formatTime(s) {
+        const m = Math.floor(s / 60);
+        const remSec = s % 60;
+        return `${m.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`;
+      }
+
+      function formatPace(paceSec) {
+        const pMins = Math.floor(paceSec / 60);
+        const pSecs = Math.round(paceSec % 60);
+        return `${pMins}'${pSecs.toString().padStart(2, '0')}"`;
+      }
+
+      function updatePace() {
+        const paceEl = document.getElementById('metric-pace');
+        if (totalKm > 0.05 && seconds > 0) {
+          const pace = seconds / totalKm;
+          if (pace / 60 < 30) {
+            paceEl.innerText = formatPace(pace);
+            return;
+          }
+        }
+        paceEl.innerText = `--'--"`;
+      }
+
+      function onPositionUpdate(pos) {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        latestLatLng = [lat, lng];
+
+        if (routeCoords.length === 0) {
+          startMarker = L.circleMarker(latestLatLng, {
+            radius: 8,
+            fillColor: '#22c55e',
+            color: '#ffffff',
+            weight: 3,
+            fillOpacity: 1
+          }).addTo(map).bindPopup('Start').openPopup();
+        } else {
+          const prev = routeCoords[routeCoords.length - 1];
+          const dist = getDistanceKm(prev[0], prev[1], lat, lng);
+          
+          if (dist > 0.003) {
+            totalKm += dist;
+            document.getElementById('metric-dist').innerText = totalKm.toFixed(2);
+
+            if (totalKm >= nextTargetKm) {
+              const splitDuration = seconds - lastSplitSec;
+              splits.push({
+                km: nextTargetKm,
+                duration: splitDuration,
+                pace: formatPace(splitDuration)
+              });
+
+              const kmIcon = L.divIcon({
+                className: 'km-badge',
+                html: `${nextTargetKm}`,
+                iconSize: [22, 22]
+              });
+              const splitMarker = L.marker(latestLatLng, { icon: kmIcon }).addTo(map);
+              splitMarkers.push(splitMarker);
+
+              lastSplitSec = seconds;
+              nextTargetKm++;
+            }
+          }
+        }
+
+        routeCoords.push(latestLatLng);
+        pathLine.setLatLngs(routeCoords);
+        updateCurrentMarker(latestLatLng);
+        map.panTo(latestLatLng);
+        updatePace();
+      }
+
+      function recenterMap() {
+        if (latestLatLng) {
+          map.flyTo(latestLatLng, 17, { animate: true, duration: 1 });
+        } else if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition((pos) => {
+            latestLatLng = [pos.coords.latitude, pos.coords.longitude];
+            updateCurrentMarker(latestLatLng);
+            map.flyTo(latestLatLng, 17, { animate: true, duration: 1 });
+          });
+        }
+      }
+
+      function startRun() {
+        if (!navigator.geolocation) {
+          alert('GPS tidak didukung di browser ini.');
+          return;
+        }
+
+        isTracking = true;
+        document.getElementById('btn-run').innerText = 'Pause';
+        document.getElementById('btn-run').className = 'flex-1 py-4 bg-slate-700 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-2xl transition-all cursor-pointer';
+        document.getElementById('btn-finish').classList.remove('hidden');
+
+        document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-ping';
+        document.getElementById('gps-text').innerText = 'GPS Tracking';
+        document.getElementById('gps-text').className = 'text-[9px] font-black tracking-wider uppercase text-green-400';
+
+        timer = setInterval(() => {
+          seconds++;
+          document.getElementById('metric-time').innerText = formatTime(seconds);
+          updatePace();
+        }, 1000);
+
+        watchId = navigator.geolocation.watchPosition(
+          onPositionUpdate,
+          (err) => console.warn('GPS Signal:', err.message),
+          { enableHighAccuracy: true, maximumAge: 1000 }
+        );
+      }
+
+      function pauseRun() {
+        isTracking = false;
+        document.getElementById('btn-run').innerText = 'Resume';
+        document.getElementById('btn-run').className = 'flex-1 py-4 bg-orange-600 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer';
+
+        document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-amber-400';
+        document.getElementById('gps-text').innerText = 'Paused';
+        document.getElementById('gps-text').className = 'text-[9px] font-black tracking-wider uppercase text-amber-400';
+
+        clearInterval(timer);
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+      }
+
+      function showSummaryModal() {
+        const currentSplits = [...splits];
+        const remainingKm = totalKm - (nextTargetKm - 1);
+        if (remainingKm > 0.1) {
+          const remDuration = seconds - lastSplitSec;
+          const remPaceSec = remDuration / remainingKm;
+          currentSplits.push({
+            km: `${(nextTargetKm - 1 + remainingKm).toFixed(2)} (Partial)`,
+            duration: remDuration,
+            pace: formatPace(remPaceSec)
+          });
+        }
+
+        document.getElementById('summary-dist').innerText = totalKm.toFixed(2);
+        document.getElementById('summary-time').innerText = formatTime(seconds);
+        
+        const avgPaceSec = totalKm > 0.05 ? seconds / totalKm : 0;
+        document.getElementById('summary-avg-pace').innerText = avgPaceSec > 0 ? formatPace(avgPaceSec) : "--'--\"";
+
+        if (splits.length > 0) {
+          const fastest = [...splits].sort((a, b) => a.duration - b.duration)[0];
+          document.getElementById('summary-best-split').innerText = fastest.pace;
+        } else {
+          document.getElementById('summary-best-split').innerText = "--'--\"";
+        }
+
+        document.getElementById('recap-timestamp').innerText = new Date().toLocaleString('id-ID', {
+          dateStyle: 'medium',
+          timeStyle: 'short'
+        });
+
+        const container = document.getElementById('splits-container');
+        if (currentSplits.length === 0) {
+          container.innerHTML = `<p class="text-xs text-slate-500 italic text-center py-4">Jarak belum mencapai 1 km.</p>`;
+        } else {
+          const maxDuration = Math.max(...currentSplits.map((s) => s.duration));
+          container.innerHTML = currentSplits.map((s) => {
+            const barWidth = Math.max(15, (s.duration / maxDuration) * 100);
+            return `
+              <div class="bg-slate-800/80 p-3 rounded-xl flex items-center justify-between gap-3 text-xs">
+                <span class="font-black text-slate-300 w-12">KM ${s.km}</span>
+                <div class="flex-1 bg-slate-900 rounded-full h-2 overflow-hidden">
+                  <div class="bg-orange-500 h-full rounded-full" style="width: ${barWidth}%"></div>
+                </div>
+                <div class="text-right w-24">
+                  <span class="font-mono font-bold text-white">${s.pace}</span>
+                  <span class="text-[9px] text-slate-400 block">${formatTime(s.duration)}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        document.getElementById('modal-summary').classList.remove('hidden');
+      }
+
+      function finishRun() {
+        pauseRun();
+        document.getElementById('btn-finish').classList.add('hidden');
+        document.getElementById('btn-run').innerText = 'Done';
+        document.getElementById('btn-run').classList.add('pointer-events-none', 'opacity-50');
+
+        if (routeCoords.length > 0) {
+          const lastCoord = routeCoords[routeCoords.length - 1];
+          endMarker = L.circleMarker(lastCoord, {
+            radius: 8,
+            fillColor: '#ef4444',
+            color: '#ffffff',
+            weight: 3,
+            fillOpacity: 1
+          }).addTo(map).bindPopup('Finish').openPopup();
+
+          map.fitBounds(pathLine.getBounds(), { padding: [40, 40] });
+        }
+
+        showSummaryModal();
+      }
+
+      function resetRun() {
+        pauseRun();
+        seconds = 0;
+        totalKm = 0;
+        routeCoords = [];
+        splits = [];
+        lastSplitSec = 0;
+        nextTargetKm = 1;
+
+        document.getElementById('metric-dist').innerText = '0.00';
+        document.getElementById('metric-time').innerText = '00:00';
+        document.getElementById('metric-pace').innerText = `--'--"`;
+
+        const runBtn = document.getElementById('btn-run');
+        runBtn.innerText = 'Start Run';
+        runBtn.className = 'flex-1 py-4 bg-orange-600 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-2xl shadow-lg shadow-orange-600/30 transition-all cursor-pointer';
+        runBtn.classList.remove('pointer-events-none', 'opacity-50');
+        
+        document.getElementById('btn-finish').classList.add('hidden');
+
+        document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-slate-400';
+        document.getElementById('gps-text').innerText = 'GPS Standby';
+        document.getElementById('gps-text').className = 'text-[9px] font-black tracking-wider uppercase text-slate-300';
+
+        pathLine.setLatLngs([]);
+        if (startMarker) { map.removeLayer(startMarker); startMarker = null; }
+        if (endMarker) { map.removeLayer(endMarker); endMarker = null; }
+
+        splitMarkers.forEach((m) => map.removeLayer(m));
+        splitMarkers = [];
+
+        recenterMap();
+      }
+
+      window.addEventListener('DOMContentLoaded', () => {
+        initMap();
+
+        document.getElementById('btn-recenter').addEventListener('click', recenterMap);
+
+        document.getElementById('btn-run').addEventListener('click', () => {
+          if (isTracking) pauseRun();
+          else startRun();
+        });
+
+        document.getElementById('btn-finish').addEventListener('click', finishRun);
+        document.getElementById('btn-reset').addEventListener('click', resetRun);
+
+        const closeModal = () => document.getElementById('modal-summary').classList.add('hidden');
+        document.getElementById('btn-close-modal').addEventListener('click', closeModal);
+        document.getElementById('btn-recap-done').addEventListener('click', closeModal);
+      });
+    </script>
+  </body>
+</html>
