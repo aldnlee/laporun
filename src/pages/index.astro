@@ -1,5 +1,5 @@
 ---
-// Laporun - GPS Tracker (Mobile 100dvh Hug-Content Layout)
+// Laporun - High Accuracy GPS Engine + WakeLock + Responsive Pace
 ---
 
 <!doctype html>
@@ -7,7 +7,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Laporun - Live Tracker</title>
+    <title>Laporun - High Accuracy Tracker</title>
 
     <script src="https://cdn.tailwindcss.com" is:inline></script>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -42,26 +42,25 @@
       }
     </style>
   </head>
-  <!-- Gunakan h-[100dvh] agar menyesuaikan address bar browser HP secara dinamis -->
   <body class="bg-slate-900 text-slate-100 font-sans h-[100dvh] w-full flex flex-col justify-between select-none overflow-hidden">
     
-    <!-- 1. Header (Fixed / Shrink-0) -->
+    <!-- 1. Header -->
     <header class="px-4 py-3 flex justify-between items-center bg-slate-800/90 backdrop-blur border-b border-slate-700/60 z-10 shrink-0">
       <div>
         <h1 class="text-lg font-black italic tracking-tight text-orange-500 uppercase leading-none">Laporun</h1>
-        <p class="text-[8px] font-bold text-slate-400 tracking-widest uppercase mt-0.5">GPS Live Tracking</p>
+        <p class="text-[8px] font-bold text-slate-400 tracking-widest uppercase mt-0.5" id="gps-accuracy-info">GPS Precision: Idle</p>
       </div>
       <div id="gps-status" class="flex items-center gap-1.5 bg-slate-700/50 px-2.5 py-1 rounded-full border border-slate-600">
         <span id="gps-dot" class="w-2 h-2 rounded-full bg-slate-400"></span>
-        <span id="gps-text" class="text-[8px] font-black tracking-wider uppercase text-slate-300">GPS Standby</span>
+        <span id="gps-text" class="text-[8px] font-black tracking-wider uppercase text-slate-300">Standby</span>
       </div>
     </header>
 
-    <!-- 2. Area Map (Flex-1 & min-h-0: Otomatis Menyesuaikan Sisa Ruang Layar Apapun) -->
+    <!-- 2. Area Map -->
     <div class="relative flex-1 min-h-0 w-full bg-slate-950 overflow-hidden">
       <div id="map"></div>
 
-      <!-- Tombol Re-center / Floating -->
+      <!-- Tombol Re-center -->
       <button
         id="btn-recenter"
         type="button"
@@ -75,9 +74,8 @@
       </button>
     </div>
 
-    <!-- 3. Bottom HUD & Controls (Fixed / Shrink-0, Ringkas & Pas di Layar HP) -->
+    <!-- 3. Bottom HUD -->
     <div class="bg-slate-800 border-t border-slate-700/60 p-4 rounded-t-2xl shadow-2xl space-y-3 z-10 shrink-0">
-      <!-- Metrics -->
       <div class="grid grid-cols-3 gap-1 text-center divide-x divide-slate-700/50">
         <div>
           <p class="text-[8px] font-bold uppercase text-slate-400">Jarak</p>
@@ -171,22 +169,27 @@
       </div>
     </div>
 
-    <!-- Script Logic -->
+    <!-- Script Engine -->
     <script is:inline>
       let map, pathLine, currentMarker, startMarker, endMarker;
       let splitMarkers = [];
       let isTracking = false;
       let watchId = null;
       let timer = null;
+      let wakeLock = null;
 
       let totalKm = 0;
       let seconds = 0;
       let routeCoords = [];
       let latestLatLng = null;
 
+      // Split data
       let splits = [];
       let lastSplitSec = 0;
       let nextTargetKm = 1;
+
+      // Rolling window untuk perhitungan pace instan yang responsif
+      let recentPositions = [];
 
       function initMap() {
         map = L.map('map', { zoomControl: false }).setView([-6.2088, 106.8456], 16);
@@ -202,7 +205,6 @@
           lineJoin: 'round'
         }).addTo(map);
 
-        // Paksa Leaflet menghitung ulang ukuran kontainer saat pertama kali load
         setTimeout(() => {
           map.invalidateSize();
         }, 200);
@@ -213,10 +215,18 @@
               latestLatLng = [pos.coords.latitude, pos.coords.longitude];
               map.setView(latestLatLng, 16);
               updateCurrentMarker(latestLatLng);
+              updateAccuracyInfo(pos.coords.accuracy);
             },
-            (err) => console.warn('Gagal baca posisi:', err.message),
-            { enableHighAccuracy: true }
+            (err) => console.warn('Gagal inisialisasi GPS:', err.message),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
           );
+        }
+      }
+
+      function updateAccuracyInfo(acc) {
+        const info = document.getElementById('gps-accuracy-info');
+        if (info && acc !== undefined) {
+          info.innerText = `GPS: ±${Math.round(acc)}m accuracy`;
         }
       }
 
@@ -247,30 +257,59 @@
 
       function formatTime(s) {
         const m = Math.floor(s / 60);
-        const remSec = s % 60;
+        const remSec = Math.floor(s % 60);
         return `${m.toString().padStart(2, '0')}:${remSec.toString().padStart(2, '0')}`;
       }
 
-      function formatPace(paceSec) {
-        const pMins = Math.floor(paceSec / 60);
-        const pSecs = Math.round(paceSec % 60);
+      function formatPace(paceSecPerKm) {
+        if (!paceSecPerKm || !isFinite(paceSecPerKm) || paceSecPerKm <= 0 || paceSecPerKm > 1800) {
+          return `--'--"`;
+        }
+        const pMins = Math.floor(paceSecPerKm / 60);
+        const pSecs = Math.round(paceSecPerKm % 60);
         return `${pMins}'${pSecs.toString().padStart(2, '0')}"`;
       }
 
-      function updatePace() {
-        const paceEl = document.getElementById('metric-pace');
-        if (totalKm > 0.05 && seconds > 0) {
-          const pace = seconds / totalKm;
-          if (pace / 60 < 30) {
-            paceEl.innerText = formatPace(pace);
-            return;
+      // Hitung Pace yang responsif
+      function calculateLivePace(pos) {
+        // 1. Coba baca hardware speed (meter/detik)
+        if (pos.coords.speed !== null && pos.coords.speed !== undefined && pos.coords.speed > 0.8) {
+          const paceSecPerKm = 1000 / pos.coords.speed;
+          return formatPace(paceSecPerKm);
+        }
+
+        // 2. Rolling window 15 detik terakhir
+        const now = Date.now();
+        recentPositions.push({ lat: pos.coords.latitude, lng: pos.coords.longitude, time: now });
+        // Simpan titik dalam 15 detik terakhir saja
+        recentPositions = recentPositions.filter(p => now - p.time <= 15000);
+
+        if (recentPositions.length >= 2) {
+          const oldest = recentPositions[0];
+          const windowDist = getDistanceKm(oldest.lat, oldest.lng, pos.coords.latitude, pos.coords.longitude);
+          const windowTimeSec = (now - oldest.time) / 1000;
+
+          if (windowDist > 0.005 && windowTimeSec > 3) {
+            const rollingPace = windowTimeSec / windowDist;
+            return formatPace(rollingPace);
           }
         }
-        paceEl.innerText = `--'--"`;
+
+        // 3. Fallback ke rata-rata total jika baru mulai lari
+        if (totalKm > 0.03 && seconds > 0) {
+          return formatPace(seconds / totalKm);
+        }
+
+        return `--'--"`;
       }
 
       function onPositionUpdate(pos) {
-        const { latitude: lat, longitude: lng } = pos.coords;
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+        updateAccuracyInfo(accuracy);
+
+        // Abaikan titik jika sinyal GPS sangat buruk (> 30 meter)
+        if (accuracy > 30) return;
+
         latestLatLng = [lat, lng];
 
         if (routeCoords.length === 0) {
@@ -281,52 +320,76 @@
             weight: 2.5,
             fillOpacity: 1
           }).addTo(map).bindPopup('Start').openPopup();
-        } else {
-          const prev = routeCoords[routeCoords.length - 1];
-          const dist = getDistanceKm(prev[0], prev[1], lat, lng);
-          
-          if (dist > 0.003) {
-            totalKm += dist;
-            document.getElementById('metric-dist').innerText = totalKm.toFixed(2);
 
-            if (totalKm >= nextTargetKm) {
-              const splitDuration = seconds - lastSplitSec;
-              splits.push({
-                km: nextTargetKm,
-                duration: splitDuration,
-                pace: formatPace(splitDuration)
-              });
+          routeCoords.push(latestLatLng);
+          updateCurrentMarker(latestLatLng);
+          return;
+        }
 
-              const kmIcon = L.divIcon({
-                className: 'km-badge',
-                html: `${nextTargetKm}`,
-                iconSize: [20, 20]
-              });
-              const splitMarker = L.marker(latestLatLng, { icon: kmIcon }).addTo(map);
-              splitMarkers.push(splitMarker);
+        const prev = routeCoords[routeCoords.length - 1];
+        const stepDist = getDistanceKm(prev[0], prev[1], lat, lng);
 
-              lastSplitSec = seconds;
-              nextTargetKm++;
-            }
+        // Hanya tambahkan jika perpindahan realistis (> 2 meter dan < 50 meter per update)
+        if (stepDist > 0.002 && stepDist < 0.05) {
+          totalKm += stepDist;
+          document.getElementById('metric-dist').innerText = totalKm.toFixed(2);
+
+          routeCoords.push(latestLatLng);
+          pathLine.setLatLngs(routeCoords);
+          updateCurrentMarker(latestLatLng);
+
+          // LOGIKA SPLIT KM AKUMULASI
+          if (totalKm >= nextTargetKm) {
+            const splitDuration = seconds - lastSplitSec;
+            splits.push({
+              km: nextTargetKm,
+              duration: splitDuration,
+              pace: formatPace(splitDuration),
+              cumulativeSeconds: seconds
+            });
+
+            // Tancap badge KM di peta
+            const kmIcon = L.divIcon({
+              className: 'km-badge',
+              html: `${nextTargetKm}`,
+              iconSize: [20, 20]
+            });
+            const splitMarker = L.marker(latestLatLng, { icon: kmIcon }).addTo(map);
+            splitMarkers.push(splitMarker);
+
+            lastSplitSec = seconds;
+            nextTargetKm++;
           }
         }
 
-        routeCoords.push(latestLatLng);
-        pathLine.setLatLngs(routeCoords);
-        updateCurrentMarker(latestLatLng);
+        // Update display pace secara real-time
+        const livePace = calculateLivePace(pos);
+        document.getElementById('metric-pace').innerText = livePace;
         map.panTo(latestLatLng);
-        updatePace();
+      }
+
+      // Mencegah HP mati/lock saat lari (Screen Wake Lock API)
+      async function requestWakeLock() {
+        try {
+          if ('wakeLock' in navigator) {
+            wakeLock = await navigator.wakeLock.request('screen');
+          }
+        } catch (err) {
+          console.warn('Wake Lock error:', err.message);
+        }
+      }
+
+      function releaseWakeLock() {
+        if (wakeLock) {
+          wakeLock.release().then(() => {
+            wakeLock = null;
+          });
+        }
       }
 
       function recenterMap() {
         if (latestLatLng) {
           map.flyTo(latestLatLng, 17, { animate: true, duration: 0.8 });
-        } else if (navigator.geolocation) {
-          navigator.geolocation.getCurrentPosition((pos) => {
-            latestLatLng = [pos.coords.latitude, pos.coords.longitude];
-            updateCurrentMarker(latestLatLng);
-            map.flyTo(latestLatLng, 17, { animate: true, duration: 0.8 });
-          });
         }
       }
 
@@ -337,29 +400,37 @@
         }
 
         isTracking = true;
+        requestWakeLock();
+
         document.getElementById('btn-run').innerText = 'Pause';
         document.getElementById('btn-run').className = 'flex-1 py-3 bg-slate-700 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer';
         document.getElementById('btn-finish').classList.remove('hidden');
 
         document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-green-500 animate-ping';
-        document.getElementById('gps-text').innerText = 'GPS Tracking';
+        document.getElementById('gps-text').innerText = 'GPS Live';
         document.getElementById('gps-text').className = 'text-[8px] font-black tracking-wider uppercase text-green-400';
 
+        // Timer independen
         timer = setInterval(() => {
           seconds++;
           document.getElementById('metric-time').innerText = formatTime(seconds);
-          updatePace();
         }, 1000);
 
         watchId = navigator.geolocation.watchPosition(
           onPositionUpdate,
-          (err) => console.warn('GPS Signal:', err.message),
-          { enableHighAccuracy: true, maximumAge: 1000 }
+          (err) => console.warn('GPS Signal error:', err.message),
+          {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 5000
+          }
         );
       }
 
       function pauseRun() {
         isTracking = false;
+        releaseWakeLock();
+
         document.getElementById('btn-run').innerText = 'Resume';
         document.getElementById('btn-run').className = 'flex-1 py-3 bg-orange-600 active:scale-[0.98] text-white font-black text-xs uppercase tracking-widest rounded-xl shadow-md shadow-orange-600/30 transition-all cursor-pointer';
 
@@ -368,19 +439,23 @@
         document.getElementById('gps-text').className = 'text-[8px] font-black tracking-wider uppercase text-amber-400';
 
         clearInterval(timer);
-        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
       }
 
       function showSummaryModal() {
         const currentSplits = [...splits];
         const remainingKm = totalKm - (nextTargetKm - 1);
-        if (remainingKm > 0.1) {
+        if (remainingKm > 0.05) {
           const remDuration = seconds - lastSplitSec;
           const remPaceSec = remDuration / remainingKm;
           currentSplits.push({
             km: `${(nextTargetKm - 1 + remainingKm).toFixed(2)}`,
             duration: remDuration,
-            pace: formatPace(remPaceSec)
+            pace: formatPace(remPaceSec),
+            cumulativeSeconds: seconds
           });
         }
 
@@ -388,7 +463,7 @@
         document.getElementById('summary-time').innerText = formatTime(seconds);
         
         const avgPaceSec = totalKm > 0.05 ? seconds / totalKm : 0;
-        document.getElementById('summary-avg-pace').innerText = avgPaceSec > 0 ? formatPace(avgPaceSec) : "--'--\"";
+        document.getElementById('summary-avg-pace').innerText = formatPace(avgPaceSec);
 
         if (splits.length > 0) {
           const fastest = [...splits].sort((a, b) => a.duration - b.duration)[0];
@@ -404,7 +479,7 @@
 
         const container = document.getElementById('splits-container');
         if (currentSplits.length === 0) {
-          container.innerHTML = `<p class="text-xs text-slate-500 italic text-center py-3">Jarak belum mencapai 1 km.</p>`;
+          container.innerHTML = `<p class="text-xs text-slate-500 italic text-center py-3">Belum ada split KM yang tercatat.</p>`;
         } else {
           const maxDuration = Math.max(...currentSplits.map((s) => s.duration));
           container.innerHTML = currentSplits.map((s) => {
@@ -415,9 +490,9 @@
                 <div class="flex-1 bg-slate-900 rounded-full h-1.5 overflow-hidden">
                   <div class="bg-orange-500 h-full rounded-full" style="width: ${barWidth}%"></div>
                 </div>
-                <div class="text-right w-20">
+                <div class="text-right w-24">
                   <span class="font-mono font-bold text-white text-[11px]">${s.pace}</span>
-                  <span class="text-[8px] text-slate-400 block">${formatTime(s.duration)}</span>
+                  <span class="text-[8px] text-slate-400 block">${formatTime(s.duration)} (Tot: ${formatTime(s.cumulativeSeconds)})</span>
                 </div>
               </div>
             `;
@@ -457,6 +532,7 @@
         splits = [];
         lastSplitSec = 0;
         nextTargetKm = 1;
+        recentPositions = [];
 
         document.getElementById('metric-dist').innerText = '0.00';
         document.getElementById('metric-time').innerText = '00:00';
@@ -470,7 +546,7 @@
         document.getElementById('btn-finish').classList.add('hidden');
 
         document.getElementById('gps-dot').className = 'w-2 h-2 rounded-full bg-slate-400';
-        document.getElementById('gps-text').innerText = 'GPS Standby';
+        document.getElementById('gps-text').innerText = 'Standby';
         document.getElementById('gps-text').className = 'text-[8px] font-black tracking-wider uppercase text-slate-300';
 
         pathLine.setLatLngs([]);
@@ -486,7 +562,6 @@
       window.addEventListener('DOMContentLoaded', () => {
         initMap();
 
-        // Handle resize orientasi layar HP
         window.addEventListener('resize', () => {
           if (map) map.invalidateSize();
         });
